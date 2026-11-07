@@ -1,3 +1,28 @@
-The system is a web application that helps users clean, analyze, and assess the quality of their data. Users can upload Excel, CSV, or JSON files. The system checks whether each file uses a supported format and can be read. If a file is invalid, the website displays an error message so the user can upload another file.
-For a valid file, the system displays an overview of the data, including the number of rows and columns, column names, data types, and a sample of the records. Users can choose cleaning operations such as handling missing values, removing duplicate records, standardizing formats, or converting data types. The system also analyzes the dataset to identify data quality issues, unusual values, and potential risks.
-Results are displayed on the website as data tables, summary statistics, and charts. Users can then download the processed data in Excel, CSV, or JSON format for further use.
+# Data Cleaning and Analysis
+
+A web application for uploading, cleaning, analyzing, and assessing the quality
+of Excel, CSV, and JSON data.
+
+## Stack and repository layout
+
+```text
+backend/       Python 3.12 + FastAPI
+frontend/      React + Vite (runs locally with Node.js)
+PostgreSQL     Database, database name DATA_CLEANING
+docker-compose.yml
+```
+
+## Local database
+
+1. Copy `.env.example` to `.env`.
+2. Start PostgreSQL with `docker compose up -d db`.
+3. Check its status with `docker compose ps`.
+4. Stop it with `docker compose down` (data stays in the named volume).
+
+The requested password `123456` is configured for local development only. Do
+not expose this database to a network or reuse this password in deployment.
+Do not commit `.env`, passwords, uploaded files, or local database files.
+
+Run the frontend locally with `cd frontend`, `npm install`, then `npm run dev`.
+Docker Compose is used for PostgreSQL only. Run the FastAPI backend locally
+once its application files have been added.
