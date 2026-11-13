@@ -1,0 +1,212 @@
+openapi: 3.1.0
+info:
+  title: Data Cleaning API
+  version: 0.1.0
+  description: >-
+    API hiện tại cho health check và xác thực người dùng. FastAPI cũng sinh đặc
+    tả runtime tại /openapi.json.
+servers:
+  - url: http://127.0.0.1:8000
+    description: Local Docker Compose
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Kiểm tra API hoạt động
+      operationId: healthCheck
+      responses:
+        '200':
+          description: API đang hoạt động
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ok
+  /api/auth/register:
+    post:
+      tags: [Authentication]
+      summary: Tạo tài khoản người dùng
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Tài khoản được tạo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '409':
+          description: Email đã được sử dụng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/auth/sign-in:
+    post:
+      tags: [Authentication]
+      summary: Đăng nhập và nhận access token
+      operationId: signIn
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignInRequest'
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignInResponse'
+        '401':
+          description: Email hoặc mật khẩu không chính xác
+          headers:
+            WWW-Authenticate:
+              schema:
+                type: string
+                const: Bearer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /api/auth/me:
+    get:
+      tags: [Authentication]
+      summary: Lấy thông tin người dùng hiện tại
+      operationId: readCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Thông tin người dùng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          description: Thiếu token hoặc token không hợp lệ/hết hạn
+          headers:
+            WWW-Authenticate:
+              schema:
+                type: string
+                const: Bearer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    ValidationError:
+      description: Request không đạt kiểm tra dữ liệu
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPValidationError'
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, full_name, password, confirm_password]
+      properties:
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+        confirm_password:
+          type: string
+          minLength: 12
+          maxLength: 128
+          description: Phải giống giá trị password.
+      example:
+        email: user@example.com
+        full_name: Nguyen Van A
+        password: a-long-local-password
+        confirm_password: a-long-local-password
+    SignInRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+      example:
+        email: user@example.com
+        password: a-long-local-password
+    UserResponse:
+      type: object
+      required: [id, email, full_name]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+    SignInResponse:
+      type: object
+      required: [access_token, token_type, user]
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          const: bearer
+        user:
+          $ref: '#/components/schemas/UserResponse'
+    ErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+    HTTPValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+    ValidationError:
+      type: object
+      required: [loc, msg, type]
+      properties:
+        loc:
+          type: array
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+        msg:
+          type: string
+        type:
+          type: string
