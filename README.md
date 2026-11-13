@@ -1,28 +1,52 @@
 # Data Cleaning and Analysis
 
-A web application for uploading, cleaning, analyzing, and assessing the quality
-of Excel, CSV, and JSON data.
+Ứng dụng web tải lên, làm sạch, phân tích và đánh giá chất lượng dữ liệu Excel,
+CSV và JSON.
 
-## Stack and repository layout
+## Cấu trúc repository
 
 ```text
-backend/       Python 3.12 + FastAPI
-frontend/      React + Vite (runs locally with Node.js)
-PostgreSQL     Database, database name DATA_CLEANING
-docker-compose.yml
+frontend/      # React + Vite: pages, modules, reusable components
+backend/       # Python + FastAPI application and feature modules
+database/      # Migrations, seeds, schema notes (đang được thiết lập)
+api-docs/      # Đặc tả và tài liệu API
+infrastructure/# Cấu hình Docker và triển khai
+tests/         # Kiểm thử tích hợp toàn hệ thống
+docs/          # Kiến trúc, yêu cầu, hướng dẫn và báo cáo dự án
+scripts/       # Script tự động hóa và tạo báo cáo
+.env.example   # Mẫu cấu hình môi trường
+docker-compose.yaml  # PostgreSQL và FastAPI cho phát triển local
 ```
 
-## Local database
+Trong frontend, mã nguồn hiện được chia theo `components/`, `pages/` và
+`modules/`. Trong backend, package `app/` được giữ làm application package của
+FastAPI; các module nghiệp vụ hiện nằm trong `app/modules/`.
 
-1. Copy `.env.example` to `.env`.
-2. Start PostgreSQL with `docker compose up -d db`.
-3. Check its status with `docker compose ps`.
-4. Stop it with `docker compose down` (data stays in the named volume).
+## Chạy local trên Windows
 
-The requested password `123456` is configured for local development only. Do
-not expose this database to a network or reuse this password in deployment.
-Do not commit `.env`, passwords, uploaded files, or local database files.
+### 1. Chạy PostgreSQL và API bằng Docker
 
-Run the frontend locally with `cd frontend`, `npm install`, then `npm run dev`.
-Docker Compose is used for PostgreSQL only. Run the FastAPI backend locally
-once its application files have been added.
+Từ thư mục gốc, sao chép `.env.example` thành `.env` nếu chưa có. Sau đó chạy:
+
+```powershell
+docker compose up --build
+```
+
+Compose khởi động database và API; API chờ database healthy trước khi chạy.
+Mở Swagger UI tại `http://127.0.0.1:8000/docs`. Đặc tả API và các endpoint
+hiện có được mô tả trong [`api-docs/README.md`](api-docs/README.md).
+Những lần sau có thể chạy `docker compose up`; thêm `--build` khi muốn dựng
+lại image sau khi sửa backend hoặc dependencies.
+
+### 2. Chạy FE
+
+```powershell
+npm --prefix frontend install
+npm --prefix frontend run dev
+```
+
+Mở địa chỉ Vite hiển thị trong terminal, mặc định `http://127.0.0.1:5173`;
+Vite proxy các request `/api` tới API trong Docker ở cổng 8000.
+
+Dừng các dịch vụ bằng `Ctrl+C` hoặc chạy `docker compose down`. Không commit
+`.env`, mật khẩu, file tải lên hoặc dữ liệu đã xử lý.
