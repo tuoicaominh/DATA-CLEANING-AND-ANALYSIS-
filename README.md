@@ -8,9 +8,7 @@ CSV và JSON.
 ```text
 frontend/      # React + Vite: pages, modules, reusable components
 backend/       # Python + FastAPI application and feature modules
-database/      # Migrations, seeds, schema notes (đang được thiết lập)
 api-docs/      # Đặc tả và tài liệu API
-infrastructure/# Cấu hình Docker và triển khai
 tests/         # Kiểm thử tích hợp toàn hệ thống
 docs/          # Kiến trúc, yêu cầu, hướng dẫn và báo cáo dự án
 scripts/       # Script tự động hóa và tạo báo cáo
