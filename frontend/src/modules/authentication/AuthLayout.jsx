@@ -17,8 +17,8 @@ export default function AuthLayout({ children, prompt, actionLabel, onAction, ac
       </section>
       {actionPlacement === 'bottom' && (
         <footer className="auth-page-footer">
-          <p>DataCare giúp bạn làm sạch và chuẩn hóa dữ liệu từ Excel, JSON và CSV nhanh chóng, tiện lợi.</p>
-          <p>© 2026 DataCare. Công cụ làm sạch và chuẩn hóa dữ liệu.</p>
+          <p>Data Cleaner giúp bạn làm sạch và chuẩn hóa dữ liệu từ Excel, JSON và CSV nhanh chóng, tiện lợi.</p>
+          <p>© 2026 Data Cleaner. Công cụ làm sạch và chuẩn hóa dữ liệu.</p>
           <nav aria-label="Liên kết thông tin">
             <a href="#privacy">Chính sách quyền riêng tư</a>
             <a href="#terms">Điều khoản sử dụng</a>

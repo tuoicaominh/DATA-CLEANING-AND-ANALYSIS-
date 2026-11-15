@@ -5,3 +5,44 @@
 @media(min-width:1500px){.page-wrap{padding-top:43px}.stats-grid{gap:18px}.stat-card{min-height:155px}.dropzone{min-height:205px}}
 @media(max-width:1050px){.sidebar{width:215px}.main-content{margin-left:215px}.topbar{padding:0 28px}.page-wrap{padding:30px 28px 20px}.stats-grid{gap:10px}.stat-card{padding:15px}.stat-number{font-size:20px}}
 @media(max-width:760px){.sidebar{width:62px;padding:19px 8px}.brand{margin:0 auto 39px}.brand>span:last-child,.workspace-label,.nav-item span,.plan-card,.profile-copy,.more-button{display:none}.nav-item{justify-content:center;padding:0}.nav-list{gap:9px}.sidebar-bottom .settings-link{margin-bottom:13px}.profile-row{justify-content:center;padding:15px 0 0}.main-content{margin-left:62px}.topbar{height:58px;padding:0 16px}.today-label{display:none}.top-actions{gap:13px}.page-wrap{padding:25px 16px 18px}.welcome-row{align-items:flex-start;gap:12px}.welcome-row h1{font-size:20px}.subtitle{max-width:260px;line-height:1.5}.welcome-row>.primary-button{font-size:0;padding:11px}.welcome-row>.primary-button svg{width:19px;height:19px}.stats-grid{grid-template-columns:1fr;gap:9px}.stat-card{min-height:unset;padding:13px 15px}.stat-top{margin-bottom:9px}.stat-label{margin-bottom:3px}.stat-number{font-size:20px}.stat-foot{margin-top:3px}.upload-section,.recent-section{padding:16px 14px}.section-heading h2,.recent-heading h2{font-size:13px}.section-heading p,.recent-heading p{font-size:10px;max-width:260px;line-height:1.5}.dropzone{min-height:180px}.recent-heading{align-items:flex-start;gap:12px;flex-direction:column}.recent-tools{width:100%;justify-content:space-between}.search-box{flex:1;max-width:190px}.search-box input{width:100%}.footer{gap:8px;flex-wrap:wrap}.footer span:nth-child(2){display:none}}
+
+/* Home content: keep sidebar and authentication layouts unchanged. */
+.cleaner-home{background:#f1f7fc;color:#183b59}
+.cleaner-home .topbar{background:#fff;border-bottom-color:#e0eaf3}
+.cleaner-home .breadcrumb{font-size:13px;gap:12px}
+.cleaner-home .breadcrumb a{color:#476782;text-decoration:none;border-radius:4px}
+.cleaner-home .breadcrumb a:hover{color:#0869ad;text-decoration:underline}
+.cleaner-home .breadcrumb strong{color:#214a6b}
+.cleaner-home .page-wrap{max-width:1280px;padding-top:48px}
+.cleaner-home .welcome-row{justify-content:center;text-align:center;padding:28px 30px;margin-bottom:0;background:#e0effb;border:1px solid #d5e6f4;border-bottom:0;border-radius:16px 16px 0 0}
+.cleaner-home .eyebrow{color:#426e91;font-size:11px;letter-spacing:1.6px}
+.cleaner-home .welcome-row h1{color:#163d5d;font-size:clamp(23px,2.3vw,32px);line-height:1.3;margin:12px 0}
+.cleaner-home .subtitle{margin-inline:auto;color:#496a84;font-size:16px;line-height:1.8;max-width:820px}
+.cleaner-home .upload-section{background:#fff;border:1px solid #d5e6f4;border-radius:0 0 16px 16px;padding:0;box-shadow:0 8px 28px #214e7408;margin-bottom:0;overflow:hidden}
+.cleaner-home .dropzone{min-height:350px;margin:0;padding:38px 20px 32px;border:0;border-top:1px dashed #b7d4e9;border-bottom:1px dashed #b7d4e9;border-radius:0;background:#fff;cursor:default;transition:background .2s,border-color .2s}
+.cleaner-home .dropzone.dragging{background:#edf7ff;border-color:#0875bb}
+.clean-file-art{position:relative;width:100px;height:100px;margin-bottom:26px}
+.file-sheet{position:absolute;width:58px;height:76px;border:1px solid #b3cee2;border-radius:5px;background:#f8fcff}
+.sheet-back{left:30px;top:6px;transform:rotate(12deg);background:#d4e5f3}
+.sheet-front{left:18px;top:8px;transform:rotate(-5deg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#287db3}
+.sheet-front>span{font-size:11px;font-weight:700}
+.clean-badge{position:absolute;right:7px;bottom:9px;width:27px;height:27px;display:grid;place-items:center;border-radius:50%;background:#197db7;color:white;border:3px solid #fff;font-size:14px}
+.cleaner-home .upload-file-button{justify-content:center;background:#167ab9;box-shadow:0 4px 10px #136b9f26;padding:16px 25px;border-radius:8px;font-size:13px;letter-spacing:.2px;gap:10px;max-width:100%}
+.cleaner-home .upload-file-button:hover{background:#09649e}
+.cleaner-home .dropzone>.drop-hint{font-size:13px;color:#52738d;margin:17px 0 0}
+.cleaner-home .file-rules{color:#526f86;font-size:12px;line-height:1.8;text-align:center;margin-top:29px;display:block}
+.cleaner-home :is(button,a):focus-visible{outline:3px solid #147dbd;outline-offset:4px}
+.cleaner-home .selected-files{border-color:#d5e6f4;margin:0;padding:20px 24px}
+.cleaner-home .selected-name small{color:#526f86}
+.cleaner-home .footer{color:#536f85}
+.cleaner-home .footer a{color:#286b9c}
+@media(max-width:760px){
+ .cleaner-home .page-wrap{padding:28px 16px 18px}
+ .cleaner-home .welcome-row{padding:24px 18px;margin-bottom:0}
+ .cleaner-home .subtitle{max-width:none;font-size:14px}
+ .cleaner-home .breadcrumb{font-size:11px;gap:6px}
+ .cleaner-home .upload-section{padding:0}
+ .cleaner-home .dropzone{min-height:330px;padding:30px 12px}
+ .cleaner-home .upload-file-button{font-size:11px;padding:14px 12px}
+ .cleaner-home .file-rules{font-size:11px;margin-top:25px}
+}
