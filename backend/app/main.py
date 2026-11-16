@@ -6,6 +6,7 @@ from app.db.base import Base
 from app.db.session import engine
 from app.api.routes import api_router
 from app.models import user as auth_models  # noqa: F401
+from app.models import uploaded_file as file_models  # noqa: F401
 
 
 @asynccontextmanager

@@ -5,7 +5,7 @@ from app.api.controllers import auth_controller
 from app.api.middlewares.authentication import require_current_user
 from app.db.session import get_db
 from app.models.user import User
-from app.validators.auth import RegisterRequest, SignInRequest, SignInResponse, UserResponse
+from app.validators.auth import ChangePasswordRequest, RegisterRequest, SignInRequest, SignInResponse, UserResponse
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -23,3 +23,8 @@ def sign_in(payload: SignInRequest, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 def read_current_user(user: User = Depends(require_current_user)):
     return auth_controller.current_user_response(user)
+
+
+@router.post("/change-password")
+def change_password(payload: ChangePasswordRequest, user: User = Depends(require_current_user), db: Session = Depends(get_db)):
+    return auth_controller.change_password(db, user, payload)

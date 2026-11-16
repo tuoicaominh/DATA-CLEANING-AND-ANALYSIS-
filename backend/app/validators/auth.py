@@ -32,3 +32,17 @@ class SignInResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=12, max_length=128)
+    confirm_password: str = Field(min_length=12, max_length=128)
+
+    @model_validator(mode="after")
+    def validate_confirmation(self):
+        if self.new_password != self.confirm_password:
+            raise ValueError("Mật khẩu xác nhận không khớp.")
+        if self.current_password == self.new_password:
+            raise ValueError("Mật khẩu mới phải khác mật khẩu hiện tại.")
+        return self

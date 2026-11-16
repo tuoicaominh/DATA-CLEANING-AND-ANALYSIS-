@@ -117,3 +117,17 @@ xóa database.
   cập nhật proxy trong `frontend/vite.config.js`.
 - Nếu đổi password sau khi volume đã khởi tạo, cần cập nhật password của role
   PostgreSQL; chỉ sửa `.env` không tự đổi password trong DB.
+
+
+## File storage
+
+Authenticated file endpoints use the current bearer token and scope every operation to the signed-in account.
+
+- GET /api/files: list metadata without loading file contents.
+- PUT /api/files/{uuid}?name={filename}: save the raw request body (CSV, XLS, XLSX, JSON; maximum 50 MB). Retrying the same ID and content does not create a duplicate.
+- GET /api/files/{uuid}/content: retrieve original bytes for the owner.
+- DELETE /api/files/{uuid}: delete the saved file.
+
+Original bytes are stored as PostgreSQL BYTEA in uploaded_files, together with owner, filename, byte size, timestamp and SHA-256. Database data persists in the existing postgres_data Docker volume. The frontend migrates legacy IndexedDB files on login/page load and removes each local copy only after the server confirms saving.
+
+Integration checks: docker compose exec api python -m unittest tests.test_file_api -v. The tests create and remove isolated test accounts only.

@@ -35,7 +35,7 @@ function App() {
     return <Register onRegistered={(email) => { setRegisteredEmail(email); setAuthMode('sign-in') }} onSwitchToSignIn={() => setAuthMode('sign-in')}/>
   }
   if (!user) return <SignIn onSignedIn={setUser} onSwitchToRegister={() => setAuthMode('register')} initialEmail={registeredEmail} successMessage={registeredEmail ? 'Tạo tài khoản thành công. Hãy đăng nhập để tiếp tục.' : ''}/>
-  return <Dashboard user={user} onSignOut={signOut}/>
+  return <Dashboard key={user.id ?? user.email} user={user} onSignOut={signOut}/>
 }
 
 export default App
