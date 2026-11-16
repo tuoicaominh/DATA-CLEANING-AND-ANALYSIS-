@@ -44,3 +44,15 @@ def get_current_user(db: Session, user_id: int) -> User | None:
     if user is None or not user.is_active:
         return None
     return user
+
+
+class IncorrectCurrentPassword(Exception):
+    pass
+
+
+def change_password(db: Session, user: User, current_password: str, new_password: str) -> None:
+    db.refresh(user, with_for_update=True)
+    if not verify_password(current_password, user.hashed_password):
+        raise IncorrectCurrentPassword
+    user.hashed_password = hash_password(new_password)
+    db.commit()

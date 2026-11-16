@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.authentication import service
 from app.models.user import User
-from app.validators.auth import RegisterRequest, SignInRequest, SignInResponse, UserResponse
+from app.validators.auth import ChangePasswordRequest, RegisterRequest, SignInRequest, SignInResponse, UserResponse
 
 
 def register(db: Session, payload: RegisterRequest) -> UserResponse:
@@ -35,3 +35,11 @@ def sign_in(db: Session, payload: SignInRequest) -> SignInResponse:
 
 def current_user_response(user: User) -> UserResponse:
     return UserResponse(id=user.id, email=user.email, full_name=user.full_name)
+
+
+def change_password(db: Session, user: User, payload: ChangePasswordRequest) -> dict:
+    try:
+        service.change_password(db, user, payload.current_password, payload.new_password)
+    except service.IncorrectCurrentPassword:
+        raise HTTPException(status_code=400, detail="Mật khẩu hiện tại không chính xác.") from None
+    return {"message": "Đổi mật khẩu thành công."}
