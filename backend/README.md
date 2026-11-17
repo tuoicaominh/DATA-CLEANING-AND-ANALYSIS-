@@ -95,6 +95,29 @@ Các route hiện có:
 - `POST /api/auth/register`
 - `POST /api/auth/sign-in`
 - `GET /api/auth/me` — cần Bearer token
+- `GET /api/files` — liệt kê metadata file của tài khoản; cần Bearer token
+- `PUT /api/files/{client_uuid}?name={filename}` — lưu CSV/XLS/XLSX/JSON và profile cột; cần Bearer token
+- `GET /api/files/{file_id}/columns` — xem profile các cột; cần Bearer token
+- `GET /api/files/{file_id}/content` — tải nội dung file; cần Bearer token
+- `DELETE /api/files/{file_id}` — xóa file và các kết quả/job liên quan; cần Bearer token
+- `POST /api/files/{file_id}/processing-jobs` — chạy nhiều action làm sạch; cần Bearer token
+- `GET /api/files/{file_id}/processing-jobs` — xem lịch sử job của file; cần Bearer token
+- `GET /api/processing-jobs/{job_id}` — xem trạng thái và kết quả job; cần Bearer token
+- `GET /api/processing-jobs/{job_id}/output` — tải file đã làm sạch; cần Bearer token
+
+Schema theo ERD gồm `data_files`, `file_columns`, `processing_jobs`,
+`cleaning_actions` và `output_files`. Nội dung file được lưu trên volume
+`uploaded_data`; `data_files.stored_path` giữ đường dẫn tương đối, còn DB lưu
+metadata, thống kê cột, trạng thái và hash. Upload nhận CSV/XLS/XLSX/JSON, tối
+đa 50 MB; Excel đọc sheet đầu tiên. File cũ trong `uploaded_files` được sao
+chép sang schema mới khi API khởi động; bảng nguồn được giữ nguyên.
+
+Job chạy tối đa 10 action theo thứ tự nhận được và lưu trạng thái `QUEUED`,
+`RUNNING`, `COMPLETED` hoặc `FAILED`. Action `missing_values` mặc định xóa dòng
+có ô trống (hoặc dùng `{"strategy":"fill_value","value":"..."}`),
+`remove_duplicates` mặc định so sánh tất cả cột (có thể truyền `columns`), còn
+`normalize_format` chuẩn hóa khoảng trắng và tùy chọn `case: lower|upper`. File
+nguồn không đổi; kết quả được lưu riêng trong `output_files`.
 
 Tài khoản ban đầu có thể tạo bằng `python -m app.modules.authentication.cli`
 trong thư mục `backend` sau khi PostgreSQL sẵn sàng. Mật khẩu yêu cầu tối
@@ -123,11 +146,9 @@ xóa database.
 
 Authenticated file endpoints use the current bearer token and scope every operation to the signed-in account.
 
-- GET /api/files: list metadata without loading file contents.
-- PUT /api/files/{uuid}?name={filename}: save the raw request body (CSV, XLS, XLSX, JSON; maximum 50 MB). Retrying the same ID and content does not create a duplicate.
-- GET /api/files/{uuid}/content: retrieve original bytes for the owner.
-- DELETE /api/files/{uuid}: delete the saved file.
+- GET /api/files: list file metadata and profile counts.
+- PUT /api/files/{client_uuid}?name={filename}: save raw bytes (maximum 50 MB) to the persistent storage volume. Retrying the same ID and content does not create a duplicate.
+- POST /api/files/{file_id}/processing-jobs: run one or more actions and save a separate result file.
+- GET /api/processing-jobs/{job_id}/output: download the result for the owning user.
 
-Original bytes are stored as PostgreSQL BYTEA in uploaded_files, together with owner, filename, byte size, timestamp and SHA-256. Database data persists in the existing postgres_data Docker volume. The frontend migrates legacy IndexedDB files on login/page load and removes each local copy only after the server confirms saving.
-
-Integration checks: docker compose exec api python -m unittest tests.test_file_api -v. The tests create and remove isolated test accounts only.
+Source and result bytes are stored on persistent volume `uploaded_data`; PostgreSQL stores their paths and metadata. Startup copies prior `uploaded_files` records into `data_files` without deleting source rows. Database records persist in `postgres_data`. The frontend migrates legacy IndexedDB files on login/page load and removes each local copy only after the server confirms saving.

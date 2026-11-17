@@ -58,7 +58,7 @@
 .files-table-scroll{overflow-x:auto}
 .files-table{min-width:620px;table-layout:fixed}
 .files-table th{background:#fff;font-size:14px;letter-spacing:0;font-weight:600;color:#385b77;padding:15px 12px}
-.files-table th:first-child{width:46%}.files-table th:nth-child(2){width:15%}.files-table th:nth-child(3){width:27%}.files-table th:last-child{width:12%}
+.files-table th:first-child{width:40%}.files-table th:nth-child(2){width:14%}.files-table th:nth-child(3){width:24%}.files-table th:last-child{width:22%}
 .files-table td{font-size:15px;font-weight:500;padding:17px 12px;border-top:1px solid #d5e3ef;color:#345873;transition:background-color .18s}
 .files-table td:first-child{display:table-cell}
 .files-name{display:flex;align-items:center;gap:12px;color:#214a6b;font-weight:500;min-width:0}
@@ -68,6 +68,14 @@
 .files-table .files-empty{text-align:center;display:table-cell;padding:28px 12px;color:#73889d}
 .delete-file-button{display:flex;align-items:center;justify-content:center;gap:5px;margin-left:auto;padding:8px 10px;background:#fff;border:1px solid #e8cfd0;border-radius:6px;color:#b54444;font-size:12px}
 .delete-file-button:hover{background:#fff0f0;border-color:#c75a5a}
+.file-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;white-space:nowrap}
+.clean-file-button,.delete-file-button{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:8px 10px;border:1px solid #b9d2e3;border-radius:6px;background:#fff;color:#286b9c;font-size:13px;font-weight:600}
+.clean-file-button:hover{background:#e8f4fc;border-color:#7daecc}
+.clean-file-button.is-selected{background:#e1f2e8;border-color:#72b58a;color:#26734a}
+.file-row-actions .delete-file-button{margin-left:0;border-color:#e8cfd0;color:#b54444}
+.file-row-actions .delete-file-button:hover{background:#fff0f0;border-color:#c75a5a}
+.files-table tbody tr.is-cleaning-target{background:#e8f4fc}
+.files-table tbody tr.is-cleaning-target:hover{background:#dceefb}
 .cleaner-home .notice{margin:16px 24px}.cleaner-home .notice-success{background:#eaf8f0;color:#227648;font-size:13px}
 .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 .delete-dialog{border:0;border-radius:16px;width:min(600px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:38px 30px 28px;color:#526b80;box-shadow:0 20px 80px #183b5933;text-align:center;overflow-y:auto}
@@ -99,6 +107,15 @@
 .cleaning-option{display:flex;align-items:center;gap:12px;padding:15px 16px;min-height:68px;text-align:left;border:1px solid #d1e1ee;border-radius:13px;background:#fff;color:#214a6b;font-size:15px;font-weight:600;line-height:1.5;transition:background-color .18s,border-color .18s,box-shadow .18s}
 .cleaning-option:hover{background:#e6f3fd;border-color:#8bbdde;box-shadow:0 4px 12px #167ab912}
 .cleaning-option.is-selected{background:#dcedfb;border-color:#167ab9;box-shadow:0 0 0 1px #167ab9}
+.cleaning-option-check{display:grid;place-items:center;flex-shrink:0;width:25px;height:25px;margin-left:auto;border:1px solid #aab8cb;border-radius:50%;color:#546a87;font-size:15px;line-height:1}
+.cleaning-option.is-selected .cleaning-option-check{background:#267753;border-color:#267753;color:#fff}
+.cleaning-selection-status{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;border:1px solid #d3dce8;border-radius:9px;background:#f8fafc;color:#4a5870;font-size:13px;line-height:1.5}
+.cleaning-selection-status button{flex-shrink:0;border:0;background:transparent;color:#326c9a;font-size:13px;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.cleaning-run-actions{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.download-cleaned-button{display:inline-flex;align-items:center;gap:7px;padding:10px 14px;border:1px solid #77aa8b;border-radius:7px;background:#eff8f2;color:#216942;font-size:13px;font-weight:600}
+.download-cleaned-button:hover{background:#e0f1e5}
+.processing-job-id{color:#4d5d72;font-size:12px;overflow-wrap:anywhere}
+.cleaning-option:focus-visible,.cleaning-selection-status button:focus-visible{outline:3px solid #75a8d2;outline-offset:3px}
 .cleaning-option-icon{display:grid;place-items:center;flex-shrink:0;width:38px;height:38px;border-radius:50%;background:#167ab9;color:#fff}
 .cleaning-option-icon.duplicates{background:#438eaa}.cleaning-option-icon.format{background:#526db0}
 .files-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -114,7 +131,7 @@
 .cleaner-home .dropzone>.drop-hint{font-size:15px;color:#3b607c}
 .cleaner-home .file-rules{font-size:13px;color:#466580}
 @media(max-width:1050px){.cleaning-options{gap:10px}.cleaning-option{padding:12px 10px;font-size:14px;gap:9px}.files-toolbar{align-items:flex-start;flex-wrap:wrap}.files-filter-button{font-size:14px}}
-@media(max-width:760px){.cleaner-home .page-wrap{padding-top:20px}.cleaner-home .top-actions{gap:7px}.top-action-button{height:40px;min-width:42px;padding:0 9px;border-radius:9px}.account-action span{display:none}.cleaning-options{grid-template-columns:1fr;gap:10px;margin-bottom:20px}.cleaning-option{min-height:60px;font-size:15px;padding:12px 14px}.files-toolbar{padding:0 12px;gap:12px}.files-filters{gap:5px}.files-filter-button{padding:10px 8px;font-size:13px;gap:6px}.files-table th:first-child,.files-table td:first-child{padding-left:14px}.files-table th:last-child,.files-table td:last-child{padding-right:14px}.cleaner-home .dropzone{margin:16px 12px;min-height:320px}.cleaner-home .dropzone>.drop-hint{font-size:14px}.cleaner-home .file-rules{font-size:12px}}
+@media(max-width:760px){.cleaner-home .page-wrap{padding-top:20px}.cleaner-home .top-actions{gap:7px}.top-action-button{height:40px;min-width:42px;padding:0 9px;border-radius:9px}.account-action span{display:none}.cleaning-options{grid-template-columns:1fr;gap:10px;margin-bottom:20px}.cleaning-option{min-height:60px;font-size:15px;padding:12px 14px}.cleaning-selection-status{align-items:flex-start;flex-direction:column}.files-toolbar{padding:0 12px;gap:12px}.files-filters{gap:5px}.files-filter-button{padding:10px 8px;font-size:13px;gap:6px}.files-table th:first-child,.files-table td:first-child{padding-left:14px}.files-table th:last-child,.files-table td:last-child{padding-right:14px}.cleaner-home .dropzone{margin:16px 12px;min-height:320px}.cleaner-home .dropzone>.drop-hint{font-size:14px}.cleaner-home .file-rules{font-size:12px}}
 
 /* Softer workspace palette and PDF House typography. */
 .app-shell{font-family:Inter,Arial,sans-serif}

@@ -108,6 +108,277 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/files:
+    get:
+      tags: [Files]
+      summary: Liệt kê file của người dùng hiện tại
+      operationId: listFiles
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Danh sách metadata file
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UploadedFileResponse'
+        '401':
+          description: Thiếu token hoặc token không hợp lệ/hết hạn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/files/{file_id}:
+    put:
+      tags: [Files]
+      summary: Lưu file dữ liệu vào PostgreSQL
+      operationId: saveFile
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 255
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+              description: CSV, XLS, XLSX hoặc JSON; tối đa 50 MB.
+      responses:
+        '200':
+          description: Metadata file đã lưu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadedFileResponse'
+        '400':
+          description: File rỗng hoặc tên/định dạng không hợp lệ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Thiếu token hoặc token không hợp lệ/hết hạn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: File vượt quá 50 MB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Mã file bị trùng với nội dung khác
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Files]
+      summary: Xóa file của người dùng hiện tại
+      operationId: deleteFile
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: File đã được xóa
+        '401':
+          description: Thiếu token hoặc token không hợp lệ/hết hạn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/files/{file_id}/content:
+    get:
+      tags: [Files]
+      summary: Tải nội dung file của người dùng hiện tại
+      operationId: readFileContent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Nội dung file nhị phân
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Không tìm thấy file thuộc tài khoản
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/files/{file_id}/columns:
+    get:
+      tags: [Files]
+      summary: Lấy profile các cột của file
+      operationId: listFileColumns
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Thống kê và kiểu dữ liệu suy luận cho từng cột
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FileColumnResponse'
+        '404':
+          description: Không tìm thấy file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/files/{file_id}/processing-jobs:
+    post:
+      tags: [Processing jobs]
+      summary: Tạo và chạy job làm sạch cho file
+      operationId: createProcessingJob
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProcessingJobRequest'
+      responses:
+        '201':
+          description: Job đã chạy xong hoặc ghi nhận trạng thái thất bại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingJobResponse'
+        '404':
+          description: Không tìm thấy file thuộc tài khoản
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: File chưa sẵn sàng để làm sạch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    get:
+      tags: [Processing jobs]
+      summary: Liệt kê lịch sử job của file
+      operationId: listFileProcessingJobs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Lịch sử job mới nhất trước
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProcessingJobResponse'
+  /api/processing-jobs/{job_id}:
+    get:
+      tags: [Processing jobs]
+      summary: Xem trạng thái và kết quả job
+      operationId: getProcessingJob
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Thông tin job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingJobResponse'
+        '404':
+          description: Không tìm thấy job thuộc tài khoản
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/processing-jobs/{job_id}/output:
+    get:
+      tags: [Processing jobs]
+      summary: Tải file kết quả của job
+      operationId: downloadProcessingOutput
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: File dữ liệu đã làm sạch
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Job chưa có file kết quả
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
     BearerAuth:
@@ -183,6 +454,130 @@ components:
           const: bearer
         user:
           $ref: '#/components/schemas/UserResponse'
+    UploadedFileResponse:
+      type: object
+      required: [id, name, size, file_format, status, created_at]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        size:
+          type: integer
+          minimum: 1
+        file_format:
+          type: string
+          enum: [csv, xls, xlsx, json]
+        row_count:
+          type: [integer, 'null']
+        column_count:
+          type: [integer, 'null']
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    FileColumnResponse:
+      type: object
+      required: [id, ordinal_position, column_name, inferred_type, missing_count, distinct_count]
+      properties:
+        id:
+          type: integer
+        ordinal_position:
+          type: integer
+        column_name:
+          type: string
+        inferred_type:
+          type: string
+        missing_count:
+          type: integer
+        distinct_count:
+          type: integer
+    CreateProcessingJobRequest:
+      type: object
+      required: [actions]
+      properties:
+        actions:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: object
+            required: [type]
+            properties:
+              type:
+                type: string
+                enum: [missing_values, remove_duplicates, normalize_format]
+              parameters:
+                type: object
+                additionalProperties: true
+      example:
+        actions:
+          - type: missing_values
+            parameters: {strategy: drop_rows}
+          - type: remove_duplicates
+            parameters: {}
+    ProcessingJobResponse:
+      type: object
+      required: [id, file_id, job_type, status, created_at]
+      properties:
+        id:
+          type: integer
+        file_id:
+          type: integer
+        job_type:
+          type: string
+        status:
+          type: string
+          enum: [QUEUED, RUNNING, COMPLETED, FAILED]
+        started_at:
+          type: [string, 'null']
+          format: date-time
+        finished_at:
+          type: [string, 'null']
+          format: date-time
+        error_message:
+          type: [string, 'null']
+        created_at:
+          type: string
+          format: date-time
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CleaningActionResponse'
+        output_file:
+          oneOf:
+            - $ref: '#/components/schemas/OutputFileResponse'
+            - type: 'null'
+    CleaningActionResponse:
+      type: object
+      required: [id, action_type, parameters, affected_rows, created_at]
+      properties:
+        id:
+          type: integer
+        column_id:
+          type: [integer, 'null']
+        action_type:
+          type: string
+        parameters:
+          type: object
+        affected_rows:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+    OutputFileResponse:
+      type: object
+      required: [id, name, size, download_url]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        size:
+          type: integer
+        download_url:
+          type: string
     ErrorResponse:
       type: object
       required: [detail]

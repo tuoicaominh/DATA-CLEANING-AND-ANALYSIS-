@@ -18,6 +18,7 @@ venv/
 *.db
 uploads/
 processed/
+backend/storage/
 
 # Frontend dependencies/build outputs
 node_modules/
