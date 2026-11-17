@@ -52,6 +52,12 @@ xác nhận mật khẩu. API kiểm tra schema, băm mật khẩu rồi ghi use
 `sessionStorage`, sau đó xác minh phiên bằng `GET /api/auth/me` khi tải lại
 trang. Nút đăng xuất xóa token và đưa người dùng về màn hình đăng nhập.
 
+Dashboard cho phép tải CSV, XLS, XLSX hoặc JSON, tối đa 50 MB mỗi file; metadata
+được lưu trong PostgreSQL và nội dung nằm trên storage volume của API. Dashboard
+hỗ trợ xóa file, chuyển file cũ từ IndexedDB lên máy chủ, chọn file làm sạch và
+chọn nhiều action. **Bắt đầu làm sạch** tạo `PROCESSING_JOB`; khi hoàn tất, có
+thể tải file kết quả riêng.
+
 Tài khoản quản trị ban đầu cũng có thể được tạo bằng lệnh
 `python -m app.modules.authentication.cli` trong `backend` sau khi PostgreSQL đã sẵn sàng.
 

@@ -26,11 +26,15 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-data_cleaning}:${POSTGRES_PASSWORD:-123}@db:5432/${POSTGRES_DB:-DATA_CLEANING}
+      STORAGE_ROOT: /app/storage
     ports:
       - "8000:8000"
+    volumes:
+      - uploaded_data:/app/storage
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
   postgres_data:
+  uploaded_data:
