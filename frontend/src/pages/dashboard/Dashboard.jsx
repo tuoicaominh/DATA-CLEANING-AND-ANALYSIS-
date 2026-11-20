@@ -1,209 +1,72 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import CleanedFiles from '../cleaned-files/CleanedFiles.jsx'
 import AccountDialog from '../../modules/authentication/AccountDialog.jsx'
 import { Icon } from '../../components/common/Icon.jsx'
-import { createProcessingJob, deleteFile, downloadProcessingOutput, listFiles, migrateLocalFiles, saveFiles } from '../../modules/dashboard/data/serverFileStorage.js'
-
-const MAX_FILE_SIZE = 50 * 1024 * 1024
-const CLEANING_OPTIONS = [
-  { id: 'missing', icon: 'missing', label: 'Xử lý giá trị trống' },
-  { id: 'duplicates', icon: 'duplicates', label: 'Xử lý trùng dữ liệu' },
-  { id: 'format', icon: 'format', label: 'Xử lý sai định dạng dữ liệu' },
-]
+import { CLEANING_OPTIONS, useDashboard } from './useDashboard.js'
 
 export default function Dashboard({ user, onSignOut }) {
-  const fileInput = useRef(null)
-  const deleteDialog = useRef(null)
-  const deleteTrigger = useRef(null)
-  const cleaningOptionsRef = useRef(null)
-  const savingLock = useRef(false)
-  const mounted = useRef(true)
-  const owner = String(user?.id ?? user?.email ?? '')
+  const {
+    fileInput,
+    deleteDialog,
+    cleaningOptionsRef,
+    accountOpen,
+    setAccountOpen,
+    selectedFiles,
+    selectedCleaningOptions,
+    cleaningTarget,
+    secondsLeft,
+    processing,
+    processingResult,
+    loadingFiles,
+    savingFiles,
+    dragging,
+    notice,
+    uploadNotice,
+    pendingDelete,
+    deleting,
+    allCleaningOptionsSelected,
+    toggleCleaningOption,
+    toggleAllCleaningOptions,
+    chooseFileForCleaning,
+    runCleaningJob,
+    cancelCleaningJob,
+    downloadCleanedFile,
+    closeDeleteDialog,
+    confirmDelete,
+    fileKind,
+    formatSize,
+    dismissNotice,
+    showNotifications,
+    requestDelete,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleFileInput,
+  } = useDashboard(user)
 
-  const [accountOpen, setAccountOpen] = useState(false)
-  const [selectedFiles, setSelectedFiles] = useState([])
-  const [selectedCleaningOptions, setSelectedCleaningOptions] = useState([])
-  const [cleaningTarget, setCleaningTarget] = useState(null)
-  const [processing, setProcessing] = useState(false)
-  const [processingResult, setProcessingResult] = useState(null)
-  const [loadingFiles, setLoadingFiles] = useState(true)
-  const [savingFiles, setSavingFiles] = useState(false)
-  const [dragging, setDragging] = useState(false)
-  const [notice, setNotice] = useState('')
-  const [uploadNotice, setUploadNotice] = useState(null)
-  const [pendingDelete, setPendingDelete] = useState(null)
-  const [deleting, setDeleting] = useState(false)
+  const [showCleanedFiles, setShowCleanedFiles] = useState(() => window.location.hash === '#cleaned-files')
 
   useEffect(() => {
-    mounted.current = true
-    return () => { mounted.current = false }
+    function updatePage() {
+      setShowCleanedFiles(window.location.hash === '#cleaned-files')
+    }
+    window.addEventListener('hashchange', updatePage)
+    return () => window.removeEventListener('hashchange', updatePage)
   }, [])
 
-  useEffect(() => {
-    if (!uploadNotice) return undefined
-    const timer = window.setTimeout(() => setUploadNotice(null), 4000)
-    return () => window.clearTimeout(timer)
-  }, [uploadNotice])
-
-  useEffect(() => {
-    if (notice) setUploadNotice(null)
-  }, [notice])
-
-  useEffect(() => {
-    if (pendingDelete) deleteDialog.current?.showModal()
-  }, [pendingDelete])
-
-  useEffect(() => {
-    let active = true
-    setLoadingFiles(true)
-    migrateLocalFiles(owner).then(async (warning) => {
-      const files = await listFiles()
-      if (!active) return
-      setSelectedFiles(files)
-      if (warning) setNotice(warning)
-    }).catch((error) => {
-      if (active) setNotice(error.message || 'Không thể tải danh sách tệp từ máy chủ.')
-    }).finally(() => {
-      if (active) setLoadingFiles(false)
-    })
-    return () => { active = false }
-  }, [owner])
-
-  function toggleCleaningOption(optionId) {
-    setProcessingResult(null)
-    setSelectedCleaningOptions((current) => current.includes(optionId)
-      ? current.filter((id) => id !== optionId)
-      : [...current, optionId])
-  }
-
-  function chooseFileForCleaning(item) {
-    setCleaningTarget(item)
-    setProcessingResult(null)
-    window.setTimeout(() => {
-      cleaningOptionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      cleaningOptionsRef.current?.focus({ preventScroll: true })
-    }, 0)
-  }
-
-  async function runCleaningJob() {
-    if (!cleaningTarget || !selectedCleaningOptions.length || processing) return
-    setProcessing(true)
-    setProcessingResult(null)
-    setNotice('')
-    try {
-      const actions = selectedCleaningOptions.map((id) => ({ type: id === 'missing' ? 'missing_values' : id === 'duplicates' ? 'remove_duplicates' : 'normalize_format', parameters: {} }))
-      const result = await createProcessingJob(cleaningTarget.id, actions)
-      setProcessingResult(result)
-      if (result.status === 'COMPLETED') {
-        const affected = result.actions.reduce((total, action) => total + action.affected_rows, 0)
-        setNotice(`Làm sạch hoàn tất cho “${cleaningTarget.file.name}”. ${affected} dòng đã được thay đổi hoặc loại bỏ.`)
-      }
-      else setNotice(result.error_message || 'Không thể làm sạch file đã chọn.')
-    } catch (error) {
-      setNotice(error.message || 'Không thể tạo processing job.')
-    } finally {
-      setProcessing(false)
-    }
-  }
-
-  async function downloadCleanedFile() {
-    if (!processingResult?.id) return
-    try {
-      const { blob, filename } = await downloadProcessingOutput(processingResult.id)
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-    } catch (error) {
-      setNotice(error.message || 'Không tải được file kết quả.')
-    }
-  }
-
-  async function addFiles(fileList) {
-    if (loadingFiles || savingLock.current || !fileList.length) return
-
-    const accepted = []
-    const rejected = []
-    Array.from(fileList).forEach((file) => {
-      if (!/\.(csv|xlsx?|json)$/i.test(file.name)) rejected.push(`${file.name}: định dạng không được hỗ trợ`)
-      else if (file.size > MAX_FILE_SIZE) rejected.push(`${file.name}: vượt quá 50 MB`)
-      else if (file.size === 0) rejected.push(`${file.name}: file rỗng`)
-      else accepted.push(file)
-    })
-
-    if (!accepted.length) {
-      setNotice(rejected.join('. ') || 'Không có file hợp lệ để tải lên.')
-      return
-    }
-
-    const items = accepted.map((file) => ({ id: crypto.randomUUID(), file, addedAt: new Date() }))
-    savingLock.current = true
-    setSavingFiles(true)
-    setNotice('')
-    setUploadNotice(null)
-    try {
-      const saved = await saveFiles(owner, items)
-      if (!mounted.current) return
-      setSelectedFiles((current) => [...current, ...saved])
-      setUploadNotice({ id: crypto.randomUUID(), count: saved.length, rejected })
-    } catch (error) {
-      if (mounted.current) {
-        setNotice(error.message || 'Không thể lưu tệp lên máy chủ. Hãy thử lại.')
-        try {
-          const files = await listFiles()
-          if (mounted.current) setSelectedFiles(files)
-        } catch { /* Keep the last confirmed list when the server is unavailable. */ }
-      }
-    } finally {
-      savingLock.current = false
-      if (mounted.current) setSavingFiles(false)
-    }
-  }
-
-  function closeDeleteDialog() {
-    if (deleting) return
-    deleteDialog.current?.close()
-    setPendingDelete(null)
-    deleteTrigger.current?.focus()
-  }
-
-  async function confirmDelete() {
-    if (!pendingDelete || deleting) return
-    const id = pendingDelete.id
-    setDeleting(true)
-    try {
-      await deleteFile(owner, id)
-      if (!mounted.current) return
-      setSelectedFiles((current) => current.filter((item) => item.id !== id))
-      setCleaningTarget((current) => current?.id === id ? null : current)
-      deleteDialog.current?.close()
-      setPendingDelete(null)
-      setNotice('Tệp của bạn đã được xóa.')
-      document.querySelector('.files-upload-button')?.focus()
-    } catch (error) {
-      if (mounted.current) {
-        deleteDialog.current?.close()
-        setPendingDelete(null)
-        setNotice(error.message || 'Không thể xóa tệp đã lưu. Tệp vẫn được giữ lại; hãy thử lại.')
-      }
-    } finally {
-      if (mounted.current) setDeleting(false)
-    }
-  }
-
-  function fileKind(name) {
-    if (/\.xlsx?$/i.test(name)) return 'excel'
-    if (/\.csv$/i.test(name)) return 'csv'
-    return 'json'
-  }
-
-  function formatSize(bytes) {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} KB`
-    return `${(bytes / 1024 / 1024).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} MB`
+  if (processing) {
+    return (
+      <main className="cleaning-wait" aria-labelledby="cleaning-wait-title">
+        <div className="cleaning-wait-card">
+          <span className="loading-spinner" aria-hidden="true"/>
+          <h1 id="cleaning-wait-title">Đang làm sạch tệp</h1>
+          <p>{cleaningTarget?.file.name}</p>
+          <progress max={30} value={30 - secondsLeft} aria-label="Thời gian chờ tối thiểu"/>
+          <p role="status">{secondsLeft > 0 ? `Còn ít nhất ${secondsLeft} giây` : 'Đang chờ máy chủ trả kết quả…'}</p>
+          <button type="button" className="primary-button" onClick={cancelCleaningJob}>Hủy làm sạch</button>
+        </div>
+      </main>
+    )
   }
 
   return (
@@ -211,7 +74,7 @@ export default function Dashboard({ user, onSignOut }) {
       {(uploadNotice || notice) && <div key={uploadNotice?.id || 'notice'} className={`home-notification ${uploadNotice || notice === 'Tệp của bạn đã được xóa.' ? 'is-success' : ''} ${uploadNotice ? 'upload-notification' : ''}`} role="status" aria-live="polite">
         <span className="notification-icon"><Icon name={uploadNotice || notice === 'Tệp của bạn đã được xóa.' ? 'check-circle' : 'bell'} size={25}/></span>
         <span className="notification-copy">{uploadNotice ? <><strong>Đã lưu {uploadNotice.count} tệp</strong><span>{uploadNotice.rejected.length ? `Không tải lên: ${uploadNotice.rejected.join('. ')}` : 'Tệp đã được lưu trên máy chủ.'}</span></> : notice}</span>
-        <button type="button" onClick={() => { setNotice(''); setUploadNotice(null) }} aria-label="Đóng thông báo"><Icon name="close" size={19}/></button>
+        <button type="button" onClick={dismissNotice} aria-label="Đóng thông báo"><Icon name="close" size={19}/></button>
         {uploadNotice && <div className="upload-notification-track" aria-hidden="true"><span/></div>}
       </div>}
 
@@ -221,8 +84,9 @@ export default function Dashboard({ user, onSignOut }) {
           <span>Data Cleaner</span>
         </a>
         <nav className="nav-list" aria-label="Điều hướng chính">
-          <a className="nav-item active" href="#overview"><Icon name="grid"/><span>Làm sạch tệp</span></a>
+          <a className={showCleanedFiles ? "nav-item" : "nav-item active"} href="#overview"><Icon name="grid"/><span>Làm sạch tệp</span></a>
           <a className="nav-item" href="#datasets"><Icon name="table"/><span>Bộ dữ liệu</span><span className="nav-count">{selectedFiles.length}</span></a>
+          <a className={showCleanedFiles ? "nav-item active" : "nav-item"} href="#cleaned-files" aria-current={showCleanedFiles ? 'page' : undefined}><Icon name="download"/><span>Tệp đã làm sạch</span></a>
           <a className="nav-item" href="#analysis"><Icon name="chart"/><span>Phân tích</span></a>
           <a className="nav-item" href="#activity"><Icon name="clock"/><span>Hoạt động</span></a>
         </nav>
@@ -231,11 +95,11 @@ export default function Dashboard({ user, onSignOut }) {
         </div>
       </aside>
 
-      <main className="main-content cleaner-home" id="overview">
+      {showCleanedFiles ? <CleanedFiles/> : <main className="main-content cleaner-home" id="overview">
         <header className="topbar">
           <h1 className="home-title">Trang chủ</h1>
           <div className="top-actions">
-            <button type="button" className="top-action-button" aria-label="Thông báo" title="Thông báo" onClick={() => setNotice('Hiện chưa có thông báo mới.')}><Icon name="bell" size={25}/></button>
+            <button type="button" className="top-action-button" aria-label="Thông báo" title="Thông báo" onClick={showNotifications}><Icon name="bell" size={25}/></button>
             <button type="button" className="top-action-button account-action" aria-label="Tài khoản của tôi" title={user?.full_name || 'Tài khoản của tôi'} onClick={() => setAccountOpen(true)} aria-haspopup="dialog"><Icon name="user" size={25}/><span>{(user?.full_name || 'U').slice(0, 2).toUpperCase()}</span></button>
           </div>
         </header>
@@ -244,7 +108,7 @@ export default function Dashboard({ user, onSignOut }) {
           <section ref={cleaningOptionsRef} tabIndex={-1} className="cleaning-options" aria-label="Chức năng làm sạch dữ liệu">
             {CLEANING_OPTIONS.map((option) => {
               const isSelected = selectedCleaningOptions.includes(option.id)
-              return <button type="button" key={option.id} className={`cleaning-option ${isSelected ? 'is-selected' : ''}`} aria-pressed={isSelected} onClick={() => toggleCleaningOption(option.id)}>
+              return <button type="button" key={option.id} className={`cleaning-option ${isSelected ? 'is-selected' : ''}`} aria-pressed={isSelected} disabled={processing} onClick={() => toggleCleaningOption(option.id)}>
                 <span className={`cleaning-option-icon ${option.id}`}><Icon name={option.icon} size={23}/></span><span>{option.label}</span><span className="cleaning-option-check" aria-hidden="true">{isSelected ? '✓' : '+'}</span>
               </button>
             })}
@@ -256,9 +120,19 @@ export default function Dashboard({ user, onSignOut }) {
                   : selectedCleaningOptions.length
                     ? `Đã chọn ${selectedCleaningOptions.length} chức năng. Chọn “Làm sạch” cạnh một file để xác định file áp dụng.`
                     : 'Chọn một hoặc nhiều chức năng, sau đó bấm “Làm sạch” cạnh file cần xử lý.'}
-              {selectedCleaningOptions.length > 0 && <button type="button" onClick={() => { setSelectedCleaningOptions([]); setProcessingResult(null) }}>Bỏ chọn tất cả</button>}
+              <button type="button" disabled={processing} onClick={toggleAllCleaningOptions}>
+                {allCleaningOptionsSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+              </button>
             </div>
             <div className="cleaning-run-actions">
+              <button
+                type="button"
+                className="primary-button"
+                disabled={!cleaningTarget || !selectedCleaningOptions.length || processing || deleting}
+                onClick={runCleaningJob}
+              >
+                {processing ? 'Đang làm sạch…' : 'Bắt đầu làm sạch'}
+              </button>
               {processingResult?.status === 'COMPLETED' && <button type="button" className="download-cleaned-button" onClick={downloadCleanedFile}><Icon name="download" size={18}/>Tải file kết quả</button>}
               {processingResult?.status === 'COMPLETED' && <span className="processing-job-id">Job #{processingResult.id} · {processingResult.output_file?.name}</span>}
             </div>
@@ -280,7 +154,7 @@ export default function Dashboard({ user, onSignOut }) {
                       <td><span className="files-name"><span className={`files-icon ${fileKind(item.file.name)}`} aria-hidden="true"><Icon name="file" size={22}/><small>{fileKind(item.file.name) === 'excel' ? 'XLS' : fileKind(item.file.name).toUpperCase()}</small></span><span title={item.file.name}>{item.file.name}</span></span></td>
                       <td>{formatSize(item.file.size)}</td>
                       <td><time dateTime={item.addedAt.toISOString()}>{item.addedAt.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</time></td>
-                      <td><div className="file-row-actions"><button type="button" className={`clean-file-button ${cleaningTarget?.id === item.id ? 'is-selected' : ''}`} aria-pressed={cleaningTarget?.id === item.id} aria-label={`Chọn ${item.file.name} để làm sạch`} onClick={() => chooseFileForCleaning(item)}><Icon name="clean" size={16}/>{cleaningTarget?.id === item.id ? 'Đã chọn' : 'Làm sạch'}</button><button type="button" className="delete-file-button" disabled={deleting} aria-label={`Xóa ${item.file.name}`} onClick={(event) => { deleteTrigger.current = event.currentTarget; setPendingDelete(item) }}><Icon name="close" size={16}/>Xóa</button></div></td>
+                      <td><div className="file-row-actions"><button type="button" className={`clean-file-button ${cleaningTarget?.id === item.id ? 'is-selected' : ''}`} aria-pressed={cleaningTarget?.id === item.id} aria-label={`Chọn ${item.file.name} để làm sạch`} disabled={processing} onClick={() => chooseFileForCleaning(item)}><Icon name="clean" size={16}/>{cleaningTarget?.id === item.id ? 'Đã chọn' : 'Làm sạch'}</button><button type="button" className="delete-file-button" disabled={deleting || processing} aria-label={`Xóa ${item.file.name}`} onClick={(event) => requestDelete(item, event.currentTarget)}><Icon name="close" size={16}/>Xóa</button></div></td>
                     </tr>)}
                     {!selectedFiles.length && <tr><td colSpan={4} className="files-empty">{loadingFiles ? 'Đang tải danh sách tệp…' : 'Chưa có tệp tin. Tải lên tệp đầu tiên của bạn.'}</td></tr>}
                   </tbody>
@@ -289,9 +163,9 @@ export default function Dashboard({ user, onSignOut }) {
             </div>
 
             <div className={`dropzone ${dragging ? 'dragging' : ''}`}
-              onDragOver={(event) => { event.preventDefault(); setDragging(true) }}
-              onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDragging(false) }}
-              onDrop={(event) => { event.preventDefault(); setDragging(false); addFiles(event.dataTransfer.files) }}>
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}>
               <div className="clean-file-art" aria-hidden="true">
                 <span className="file-sheet sheet-back"/>
                 <span className="file-sheet sheet-front"><Icon name="file" size={40}/><span>Clean</span></span>
@@ -300,13 +174,13 @@ export default function Dashboard({ user, onSignOut }) {
               <button type="button" className="primary-button upload-file-button" disabled={loadingFiles || savingFiles} onClick={() => fileInput.current?.click()}><Icon name="upload" size={20}/>{savingFiles ? 'ĐANG LƯU TỆP…' : 'TẢI LÊN TỆP TIN CỦA BẠN'}</button>
               <p className="drop-hint">hoặc kéo thả tệp của bạn vào đây</p>
               <div className="file-rules">Hỗ trợ định dạng XLS, XLSX, JSON, CSV. Dung lượng tối đa 50 MB mỗi tệp.</div>
-              <input ref={fileInput} className="hidden-input" type="file" accept=".csv,.xls,.xlsx,.json" multiple onChange={(event) => { addFiles(event.target.files); event.target.value = '' }}/>
+              <input ref={fileInput} className="hidden-input" type="file" accept=".csv,.xls,.xlsx,.json" multiple onChange={handleFileInput}/>
             </div>
           </section>
 
           <footer className="footer"><span>© 2026 Data Cleaner</span><span>Dữ liệu của bạn luôn được bảo mật <i className="lock-dot">◆</i></span><a href="#help">Trung tâm trợ giúp</a></footer>
         </div>
-      </main>
+      </main>}
 
       <AccountDialog open={accountOpen} user={user} onClose={() => setAccountOpen(false)} onSignOut={onSignOut}/>
       <dialog ref={deleteDialog} className="delete-dialog" aria-labelledby="delete-title" aria-describedby="delete-description" onCancel={(event) => { event.preventDefault(); closeDeleteDialog() }}>
