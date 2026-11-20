@@ -2,7 +2,6 @@ import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -14,11 +13,9 @@ from app.models.data_file import DataFile
 from app.models.file_column import FileColumn
 from app.models.output_file import OutputFile
 from app.models.processing_job import ProcessingJob
+from app.modules.processing.actions import HANDLERS
 from app.modules.processing.data_io import read_dataset, write_dataset
 from app.validators.processing import CleaningActionRequest
-
-ACTION_TYPES = {"missing_values", "remove_duplicates", "normalize_format"}
-
 
 def stored_path(relative_path: str) -> Path:
     root = settings.storage_root.resolve()
@@ -26,68 +23,6 @@ def stored_path(relative_path: str) -> Path:
     if not path.is_relative_to(root):
         raise ValueError("Đường dẫn lưu trữ không hợp lệ.")
     return path
-
-
-def _is_missing(value: Any) -> bool:
-    return value is None or (isinstance(value, str) and not value.strip())
-
-
-def _apply_action(headers: list[str], rows: list[list[Any]], action: CleaningActionRequest) -> tuple[list[list[Any]], int]:
-    parameters = action.parameters
-    if action.type == "missing_values":
-        strategy = parameters.get("strategy", "drop_rows")
-        if strategy == "drop_rows":
-            kept = [row for row in rows if not any(_is_missing(value) for value in row)]
-            return kept, len(rows) - len(kept)
-        if strategy == "fill_value":
-            fill_value = parameters.get("value", "")
-            changed = 0
-            filled = []
-            for row in rows:
-                new_row = [fill_value if _is_missing(value) else value for value in row]
-                changed += int(new_row != row)
-                filled.append(new_row)
-            return filled, changed
-        raise ValueError("Cách xử lý giá trị trống phải là drop_rows hoặc fill_value.")
-
-    if action.type == "remove_duplicates":
-        selected_columns = parameters.get("columns") or headers
-        if not isinstance(selected_columns, list) or any(name not in headers for name in selected_columns):
-            raise ValueError("Cột dùng để tìm dữ liệu trùng không hợp lệ.")
-        if not selected_columns:
-            raise ValueError("Chọn ít nhất một cột để tìm dữ liệu trùng.")
-        indexes = [headers.index(name) for name in selected_columns]
-        seen = set()
-        kept = []
-        for row in rows:
-            key = tuple(repr(row[index]) for index in indexes)
-            if key in seen:
-                continue
-            seen.add(key)
-            kept.append(row)
-        return kept, len(rows) - len(kept)
-
-    if action.type == "normalize_format":
-        case_mode = parameters.get("case", "preserve")
-        if case_mode not in {"preserve", "lower", "upper"}:
-            raise ValueError("Tham số case phải là preserve, lower hoặc upper.")
-        changed_rows = 0
-        normalized = []
-        for row in rows:
-            new_row = []
-            for value in row:
-                if isinstance(value, str):
-                    value = re.sub(r"\s+", " ", value).strip()
-                    if case_mode == "lower":
-                        value = value.lower()
-                    elif case_mode == "upper":
-                        value = value.upper()
-                new_row.append(value)
-            changed_rows += int(new_row != row)
-            normalized.append(new_row)
-        return normalized, changed_rows
-
-    raise ValueError("Loại thao tác làm sạch không được hỗ trợ.")
 
 
 def _job_payload(db: Session, job: ProcessingJob) -> dict:
@@ -132,7 +67,7 @@ def create_and_run_job(
 ) -> dict:
     if not actions:
         raise HTTPException(422, "Chọn ít nhất một thao tác làm sạch.")
-    if any(action.type not in ACTION_TYPES for action in actions):
+    if any(action.type not in HANDLERS for action in actions):
         raise HTTPException(422, "Có thao tác làm sạch không được hỗ trợ.")
 
     job = ProcessingJob(file_id=data_file.id, user_id=user_id, job_type="CLEANING", status="QUEUED")
@@ -167,7 +102,7 @@ def create_and_run_job(
         db.commit()
 
         for action, record in zip(actions, action_records):
-            rows, affected_rows = _apply_action(headers, rows, action)
+            rows, affected_rows = HANDLERS[action.type](headers, rows, action.parameters)
             record.affected_rows = affected_rows
             db.commit()
 

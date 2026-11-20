@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import FileResponse as DownloadResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -79,3 +79,53 @@ def download_processing_output(
     if not path.is_file():
         raise HTTPException(404, "Không tìm thấy file kết quả trên kho lưu trữ.")
     return DownloadResponse(path, filename=output.original_name, media_type="application/octet-stream")
+
+
+@router.delete("/processing-jobs/{job_id}", status_code=204)
+def discard_processing_job(
+    job_id: int,
+    user: User = Depends(require_current_user),
+    db: Session = Depends(get_db),
+):
+    job = db.scalar(select(ProcessingJob).where(
+        ProcessingJob.id == job_id, ProcessingJob.user_id == user.id
+    ).with_for_update())
+    if job is None:
+        return Response(status_code=204)
+    if job.status not in {"COMPLETED", "FAILED"}:
+        raise HTTPException(409, "Job đang xử lý.")
+    output = db.scalar(select(OutputFile).where(OutputFile.job_id == job.id))
+    if output:
+        service.stored_path(output.stored_path).unlink(missing_ok=True)
+    db.delete(job)
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.get("/cleaned-files")
+def list_cleaned_files(
+    user: User = Depends(require_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = db.execute(
+        select(OutputFile, DataFile.original_name)
+        .join(ProcessingJob, OutputFile.job_id == ProcessingJob.id)
+        .join(DataFile, ProcessingJob.file_id == DataFile.id)
+        .where(
+            ProcessingJob.user_id == user.id,
+            DataFile.user_id == user.id,
+            ProcessingJob.status == "COMPLETED",
+            OutputFile.output_type == "CLEANED_DATA",
+        )
+        .order_by(OutputFile.created_at.desc(), OutputFile.id.desc())
+    )
+    return [
+        {
+            "job_id": output.job_id,
+            "name": output.original_name,
+            "source_name": source_name,
+            "file_format": output.file_format,
+            "created_at": output.created_at,
+        }
+        for output, source_name in rows
+    ]

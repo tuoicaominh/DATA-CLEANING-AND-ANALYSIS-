@@ -93,3 +93,13 @@ export function migrateLocalFiles(owner) {
   }
   return migrations.get(owner)
 }
+
+export async function discardProcessingJob(jobId, token) {
+  await request(`/processing-jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' }, token)
+}
+
+
+export async function listCleanedFiles(signal) {
+  const response = await request('/cleaned-files', { signal })
+  return response.json()
+}

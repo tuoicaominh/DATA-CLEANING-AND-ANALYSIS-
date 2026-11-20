@@ -240,3 +240,9 @@ body:has(.app-shell){background:#f3f6fa}
 .sidebar-signout:hover{background:#fff0e9;color:#a1332b}
 .sidebar-signout:focus-visible{outline:2px solid #a84c45;outline-offset:2px}
 @media(max-width:760px){.sidebar-signout{display:none}}
+
+.cleaning-wait{min-height:100vh;display:grid;place-items:center;padding:24px;background:#f3f7fb}
+.cleaning-wait-card{width:min(100%,460px);padding:32px;text-align:center;background:#fff;border:1px solid #d3dce8;border-radius:16px;overflow-wrap:anywhere}
+.cleaning-wait-card progress{width:100%;accent-color:#326c9a}
+.cleaning-wait-card .primary-button{margin:12px auto 0}
+.cleaned-files-message{padding:24px;text-align:center}.cleaned-files-message p{margin:0 0 12px}.cleaned-files-message .primary-button{margin-inline:auto}
