@@ -250,6 +250,12 @@ paths:
           required: true
           schema:
             type: integer
+        - name: suggest_types
+          in: query
+          description: Gợi ý kiểu dữ liệu yêu cầu dựa trên nội dung từng cột.
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           description: Thống kê và kiểu dữ liệu suy luận cho từng cột
@@ -507,9 +513,10 @@ components:
             properties:
               type:
                 type: string
-                enum: [missing_values, remove_duplicates, normalize_format]
+                enum: [missing_values, remove_duplicates, normalize_format, validate_types]
               parameters:
                 type: object
+                description: Với validate_types, column_types ánh xạ tên cột sang VARCHAR, INTEGER, DECIMAL, DATE hoặc BOOLEAN.
                 additionalProperties: true
       example:
         actions:
@@ -517,6 +524,9 @@ components:
             parameters: {strategy: drop_rows}
           - type: remove_duplicates
             parameters: {}
+          - type: validate_types
+            parameters:
+              column_types: {Product Name: VARCHAR, Quantity: INTEGER}
     ProcessingJobResponse:
       type: object
       required: [id, file_id, job_type, status, created_at]

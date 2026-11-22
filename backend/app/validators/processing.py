@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class CleaningActionRequest(BaseModel):
-    type: Literal["missing_values", "remove_duplicates", "normalize_format"]
+    type: Literal["missing_values", "remove_duplicates", "normalize_format", "validate_types"]
     parameters: dict = Field(default_factory=dict)
 
 

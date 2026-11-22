@@ -3,6 +3,7 @@ import Analysis from '../analysis/Analysis.jsx'
 import CleanedFiles from '../cleaned-files/CleanedFiles.jsx'
 import AccountDialog from '../../modules/authentication/AccountDialog.jsx'
 import { Icon } from '../../components/common/Icon.jsx'
+import ColumnTypeRules from './ColumnTypeRules.jsx'
 import { CLEANING_OPTIONS, CLEANING_WAIT_SECONDS, useDashboard } from './useDashboard.js'
 import './dashboard.css'
 
@@ -16,6 +17,11 @@ export default function Dashboard({ user, onSignOut }) {
     selectedFiles,
     selectedCleaningOptions,
     cleaningTarget,
+    currentProfile,
+    columnTypesOpen,
+    setColumnTypesOpen,
+    retryColumnProfile,
+    setColumnType,
     secondsLeft,
     processing,
     processingResult,
@@ -103,7 +109,7 @@ export default function Dashboard({ user, onSignOut }) {
       {showCleanedFiles ? <CleanedFiles/> : showAnalysis ? <Analysis jobId={new URLSearchParams(query).get('job')}/> : <main className="main-content cleaner-home cleaning-dashboard" id="overview">
         <div className="page-wrap cleaned-library">
         <header className="cleaned-library-header dashboard-header">
-          <span className="cleaned-library-icon"><Icon name="clean" size={26}/></span>
+          <span className="cleaned-library-icon"><Icon name="broom" size={26}/></span>
           <div><h1>Làm sạch dữ liệu</h1><p>Chọn tệp và quy tắc để bắt đầu.</p></div>
           <div className="top-actions">
             <button type="button" className="top-action-button" aria-label="Thông báo" title="Thông báo" onClick={showNotifications}><Icon name="bell" size={25}/></button>
@@ -124,6 +130,17 @@ export default function Dashboard({ user, onSignOut }) {
                 <span className={`cleaning-option-icon ${option.id}`}><Icon name={option.icon} size={23}/></span><span>{option.label}</span><span className="cleaning-option-check" aria-hidden="true">{isSelected ? '✓' : '+'}</span>
               </button>
             })}
+            {selectedCleaningOptions.includes('format') && (
+              <ColumnTypeRules
+                key={cleaningTarget?.id}
+                hasFile={Boolean(cleaningTarget)}
+                profile={currentProfile}
+                open={columnTypesOpen}
+                onOpenChange={setColumnTypesOpen}
+                retry={retryColumnProfile}
+                setColumnType={setColumnType}
+              />
+            )}
             <div className="cleaning-selection-status" role="status" aria-live="polite">
               {processingResult
                 ? `Job #${processingResult.id}: ${processingResult.status}${processingResult.error_message ? ` — ${processingResult.error_message}` : ''}`
@@ -137,12 +154,15 @@ export default function Dashboard({ user, onSignOut }) {
               <button
                 type="button"
                 className="primary-button"
-                disabled={processing || deleting}
+                disabled={processing || deleting || (cleaningTarget && selectedCleaningOptions.includes('format') && !Object.values(currentProfile?.types ?? {}).some(Boolean))}
                 onClick={runCleaningJob}
               >
                 <Icon name="broom" size={18}/>{processing ? 'Đang làm sạch…' : 'Bắt đầu làm sạch'}
               </button>
               {processingResult?.status === 'COMPLETED' && <button type="button" className="download-cleaned-button" onClick={downloadCleanedFile}><Icon name="download" size={18}/>Tải file kết quả</button>}
+              {processingResult?.status === 'COMPLETED' && selectedCleaningOptions.includes('format') && (
+                <a className="quality-button" href={`#analysis?job=${processingResult.id}`}>Xem báo cáo kiểu dữ liệu</a>
+              )}
               {processingResult?.status === 'COMPLETED' && <span className="processing-job-id">Job #{processingResult.id} · {processingResult.output_file?.name}</span>}
             </div>
           </section>

@@ -1,6 +1,6 @@
 import { NOTICE_DURATION_MS } from '../../hooks/useNotice.js'
 import { useEffect, useRef, useState } from 'react'
-import { createProcessingJob, deleteFile, discardProcessingJob, downloadProcessingOutput, listFiles, migrateLocalFiles, saveFiles } from '../../modules/dashboard/data/serverFileStorage.js'
+import { createProcessingJob, deleteFile, discardProcessingJob, downloadProcessingOutput, listFileColumnTypes, listFiles, migrateLocalFiles, saveFiles } from '../../modules/dashboard/data/serverFileStorage.js'
 
 const MISSING_SELECTION_NOTICE = 'Bạn chưa chọn tệp và chức năng để làm sạch.'
 const MISSING_FILE_NOTICE = 'Bạn chưa chọn tệp để làm sạch.'
@@ -10,8 +10,12 @@ export const CLEANING_WAIT_SECONDS = 15
 export const CLEANING_OPTIONS = [
   { id: 'missing', icon: 'missing', label: 'Xử lý giá trị trống' },
   { id: 'duplicates', icon: 'duplicates', label: 'Xử lý trùng dữ liệu' },
-  { id: 'format', icon: 'format', label: 'Xử lý sai định dạng dữ liệu' },
+  { id: 'format', icon: 'format', label: 'Kiểm tra kiểu dữ liệu theo cột' },
+  { id: 'whitespace', icon: 'whitespace', label: 'Chuẩn hóa khoảng trắng' },
 ]
+const actionTypes = {
+  missing: 'missing_values', duplicates: 'remove_duplicates', format: 'validate_types', whitespace: 'normalize_format',
+}
 
 export function useDashboard(user) {
   const fileInput = useRef(null)
@@ -26,6 +30,12 @@ export function useDashboard(user) {
   const [selectedFiles, setSelectedFiles] = useState([])
   const [selectedCleaningOptions, setSelectedCleaningOptions] = useState([])
   const [cleaningTarget, setCleaningTarget] = useState(null)
+  const [columnProfile, setColumnProfile] = useState(null)
+  const [columnTypesOpen, setColumnTypesOpen] = useState(false)
+  const [profileRevision, setProfileRevision] = useState(0)
+  const targetId = cleaningTarget?.id
+  const checkTypes = selectedCleaningOptions.includes('format')
+  const currentProfile = columnProfile?.fileId === targetId ? columnProfile : null
   const activeRun = useRef(null)
   const [secondsLeft, setSecondsLeft] = useState(CLEANING_WAIT_SECONDS)
   const [processing, setProcessing] = useState(false)
@@ -38,6 +48,32 @@ export function useDashboard(user) {
   const [uploadNotice, setUploadNotice] = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
   const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    if (!checkTypes || !targetId || currentProfile) return
+    const controller = new AbortController()
+    listFileColumnTypes(targetId, controller.signal).then((columns) => {
+      if (!controller.signal.aborted) {
+        setColumnProfile({
+          fileId: targetId, columns,
+          types: Object.fromEntries(columns.map((column) => [column.column_name, column.suggested_type || 'VARCHAR'])),
+        })
+      }
+    }).catch((error) => {
+      if (!controller.signal.aborted) setColumnProfile({ fileId: targetId, error: error.message })
+    })
+    return () => controller.abort()
+  }, [checkTypes, targetId, currentProfile?.fileId, profileRevision])
+
+  function retryColumnProfile() {
+    setColumnProfile(null)
+    setProfileRevision((revision) => revision + 1)
+  }
+
+  function setColumnType(name, type) {
+    setColumnProfile((profile) => ({ ...profile, types: { ...profile.types, [name]: type } }))
+    setProcessingResult(null)
+  }
 
   useEffect(() => {
     mounted.current = true
@@ -100,12 +136,14 @@ export function useDashboard(user) {
   function toggleAllCleaningOptions() {
     setProcessingResult(null)
     const remaining = CLEANING_OPTIONS.filter(({ id }) => !selectedCleaningOptions.includes(id))
+    setColumnTypesOpen(remaining.length > 0)
     updateCleaningSelection(remaining.length
       ? [...selectedCleaningOptions, ...remaining.map(({ id }) => id)]
       : [])
   }
 
   function updateCleaningSelection(next) {
+    if (!next.includes('format')) setColumnTypesOpen(false)
     setSelectedCleaningOptions(next)
     clearSelectionNotice()
   }
@@ -134,6 +172,11 @@ export function useDashboard(user) {
       setNotice(MISSING_ACTION_NOTICE)
       return
     }
+    const columnTypes = Object.fromEntries(Object.entries(currentProfile?.types ?? {}).filter(([, type]) => type))
+    if (checkTypes && !Object.keys(columnTypes).length) {
+      setNotice('Hãy chọn kiểu dữ liệu cho ít nhất một cột.')
+      return
+    }
     const run = { cancelled: false, token: sessionStorage.getItem('access_token') }
     activeRun.current = run
     setProcessing(true)
@@ -159,8 +202,8 @@ export function useDashboard(user) {
 
     try {
       const actions = selectedCleaningOptions.map((id) => ({
-        type: id === 'missing' ? 'missing_values' : id === 'duplicates' ? 'remove_duplicates' : 'normalize_format',
-        parameters: {},
+        type: actionTypes[id],
+        parameters: id === 'format' ? { column_types: columnTypes } : {},
       }))
       const result = await createProcessingJob(cleaningTarget.id, actions)
       await minimumWait
@@ -345,6 +388,11 @@ export function useDashboard(user) {
     selectedFiles,
     selectedCleaningOptions,
     cleaningTarget,
+    currentProfile,
+    columnTypesOpen,
+    setColumnTypesOpen,
+    retryColumnProfile,
+    setColumnType,
     secondsLeft,
     processing,
     processingResult,

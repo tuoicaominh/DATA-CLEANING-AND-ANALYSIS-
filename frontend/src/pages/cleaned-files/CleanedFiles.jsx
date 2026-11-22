@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { Icon } from '../../components/common/Icon.jsx'
+import { useNotice } from '../../hooks/useNotice.js'
 import QualityReport from '../analysis/QualityReport.jsx'
 import { useCleanedFiles } from './useCleanedFiles.js'
 import './cleaned-files.css'
@@ -9,7 +10,7 @@ const completedAt = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', time
 export default function CleanedFiles() {
   const { files, loadFailed, loadError, downloadError, downloadingJob, download, retry, deleting, deleteError, setDeleteError, remove } = useCleanedFiles()
   const [target, setTarget] = useState(null)
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useNotice()
   const [suspiciousJob, setSuspiciousJob] = useState(null)
   const deleteDialog = useRef(null)
   const suspiciousTrigger = useRef(null)
@@ -36,6 +37,13 @@ export default function CleanedFiles() {
 
   return (
     <main className="main-content cleaner-home" id="cleaned-files">
+      {notice && (
+        <div className="home-notification is-success">
+          <span className="notification-icon"><Icon name="check-circle" size={23}/></span>
+          <span role="status">{notice}</span>
+          <button type="button" onClick={() => setNotice('')} aria-label="Đóng thông báo"><Icon name="close" size={19}/></button>
+        </div>
+      )}
       <div className="page-wrap cleaned-library">
         <header className="cleaned-library-header">
           <span className="cleaned-library-icon"><Icon name="format" size={26}/></span>
@@ -43,7 +51,7 @@ export default function CleanedFiles() {
             <h1>Tệp đã làm sạch</h1>
             {files && <p>{files.length.toLocaleString('vi-VN')} tệp kết quả</p>}
           </div>
-          <a href="#overview" className="cleaned-new-link"><Icon name="clean" size={17}/>Làm sạch tệp</a>
+          <a href="#overview" className="cleaned-new-link"><Icon name="broom" size={17}/>Làm sạch tệp</a>
         </header>
         <section className="cleaned-library-panel" aria-label="Tệp kết quả">
           {loadFailed ? (
@@ -87,7 +95,6 @@ export default function CleanedFiles() {
             </ul>
           )}
           {downloadError && <p className="cleaned-files-message" role="alert">{downloadError}</p>}
-          {notice && <p className="cleaned-files-message" role="status">{notice}</p>}
         </section>
         {suspiciousFile && <QualityReport key={suspiciousFile.job_id} file={suspiciousFile} showRecords onClose={closeSuspiciousRecords}/>}
       </div>

@@ -1,4 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+import io
+import json
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -23,6 +27,7 @@ def get_cleaned_file_quality(
     job_id: int,
     offset: int = Query(0, ge=0),
     limit: int = Query(25, ge=1, le=100),
+    format: Literal["json", "xlsx"] = "json",
     user: User = Depends(require_current_user),
     db: Session = Depends(get_db),
 ):
@@ -51,19 +56,67 @@ def get_cleaned_file_quality(
         db.flush()
         issues = db.scalars(issues_query).all()
 
+    visible_records = (SuspiciousRecord.job_id == job_id, SuspiciousRecord.issue_type != "EXTRA_WHITESPACE")
     records_query = select(SuspiciousRecord, FileColumn.column_name).outerjoin(
         FileColumn, SuspiciousRecord.column_id == FileColumn.id,
-    ).where(SuspiciousRecord.job_id == job_id)
-    total = db.scalar(select(func.count(SuspiciousRecord.id)).where(SuspiciousRecord.job_id == job_id))
-    records = db.execute(records_query.order_by(
+    ).where(*visible_records).order_by(
         SuspiciousRecord.source_row_number, SuspiciousRecord.id,
-    ).offset(offset).limit(limit)).all()
+    )
+    expected_types = {
+        issue.details.get("column_name"): issue.details.get("expected_type")
+        for issue in issues if issue.issue_type == "TYPE_MISMATCH"
+    }
+    if format == "xlsx":
+        from openpyxl import Workbook
+        from openpyxl.cell import WriteOnlyCell
+        from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
+
+        workbook = Workbook(write_only=True)
+        sheet = workbook.create_sheet("Bản ghi đáng ngờ")
+        sheet.freeze_panes = "A2"
+        for column, width in zip("ABCDEF", (17, 28, 24, 22, 58, 70)):
+            sheet.column_dimensions[column].width = width
+        sheet.append(["Bản ghi nguồn", "Cột", "Mã vấn đề", "Kiểu yêu cầu", "Lý do", "Giá trị gốc"])
+        for record, column_name in db.execute(records_query):
+            values = [
+                record.source_row_number,
+                column_name,
+                record.issue_type,
+                expected_types.get(column_name) if record.issue_type == "TYPE_MISMATCH" else None,
+                record.reason,
+                record.original_value if isinstance(record.original_value, str)
+                else json.dumps(record.original_value, ensure_ascii=False),
+            ]
+            cells = []
+            for value in values:
+                if isinstance(value, str):
+                    value = ILLEGAL_CHARACTERS_RE.sub(lambda match: f"\\u{ord(match[0]):04x}", value)
+                    # Continue long values across cells to avoid Excel's per-cell truncation.
+                    for start in range(0, max(len(value), 1), 32767):
+                        cell = WriteOnlyCell(sheet, value=value[start:start + 32767])
+                        cell.data_type = "s"
+                        cells.append(cell)
+                else:
+                    cells.append(value)
+            sheet.append(cells)
+        db.commit()
+        output = io.BytesIO()
+        workbook.save(output)
+        return Response(
+            output.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="ban-ghi-dang-ngo-{job_id}.xlsx"'},
+        )
+
+    total = db.scalar(select(func.count(SuspiciousRecord.id)).where(*visible_records))
+    records = db.execute(records_query.offset(offset).limit(limit)).all()
     db.commit()
     return {
         "quality_issues": [{
             "id": issue.id,
             "column_name": issue.details.get("column_name"),
             "issue_type": issue.issue_type,
+            "expected_type": issue.details.get("expected_type"),
             "issue_count": issue.issue_count,
             "issue_rate": issue.issue_rate,
         } for issue in issues if issue.issue_count],
@@ -73,6 +126,7 @@ def get_cleaned_file_quality(
             "column_name": column_name,
             "original_value": record.original_value,
             "issue_type": record.issue_type,
+            "expected_type": expected_types.get(column_name) if record.issue_type == "TYPE_MISMATCH" else None,
             "reason": record.reason,
         } for record, column_name in records],
         "suspicious_total": total,
