@@ -1,3 +1,4 @@
+import { useNotice } from '../../hooks/useNotice.js'
 import { useState } from 'react'
 import AuthLayout from './AuthLayout.jsx'
 
@@ -6,7 +7,7 @@ export default function SignIn({ onSignedIn, onSwitchToRegister, initialEmail = 
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useNotice()
 
   async function handleSubmit(event) {
     event.preventDefault()

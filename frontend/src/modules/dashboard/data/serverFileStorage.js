@@ -13,7 +13,9 @@ async function request(apiPath, options = {}, token = sessionStorage.getItem('ac
   }
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    if (typeof error.detail === 'string' && error.detail !== 'Internal Server Error') throw new Error(error.detail)
+    if (typeof error.detail === 'string' && error.detail !== 'Internal Server Error') {
+      throw Object.assign(new Error(error.detail), { status: response.status })
+    }
     if (response.status === 404) throw new Error('API không tìm thấy endpoint kho tệp (404). Hãy khởi động lại backend.')
     if (response.status >= 500) throw new Error(`API kho tệp gặp lỗi máy chủ (HTTP ${response.status}).`)
     throw new Error(`Yêu cầu kho tệp thất bại (HTTP ${response.status}).`)
@@ -37,13 +39,19 @@ export async function listFiles() {
 export async function saveFiles(_owner, items) {
   const token = sessionStorage.getItem('access_token')
   const saved = []
+  const rejected = []
   for (const item of items) {
-    const row = await api(`/${encodeURIComponent(item.id)}?name=${encodeURIComponent(item.file.name)}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: item.file,
-    }, token)
-    saved.push(toItem(row))
+    try {
+      const row = await api(`/${encodeURIComponent(item.id)}?name=${encodeURIComponent(item.file.name)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: item.file,
+      }, token)
+      saved.push(toItem(row))
+    } catch (error) {
+      if (error.status !== 409) throw error
+      rejected.push(`${item.file.name} — ${error.message}`)
+    }
   }
-  return saved
+  return { saved, rejected }
 }
 
 export function deleteFile(_owner, id) {
@@ -101,5 +109,14 @@ export async function discardProcessingJob(jobId, token) {
 
 export async function listCleanedFiles(signal) {
   const response = await request('/cleaned-files', { signal })
+  return response.json()
+}
+
+export async function deleteCleanedFile(jobId) {
+  await request(`/cleaned-files/${encodeURIComponent(jobId)}`, { method: 'DELETE' })
+}
+
+export async function getCleanedFileQuality(jobId, offset, signal) {
+  const response = await request(`/analysis/cleaned-files/${encodeURIComponent(jobId)}/quality?offset=${offset}`, { signal })
   return response.json()
 }

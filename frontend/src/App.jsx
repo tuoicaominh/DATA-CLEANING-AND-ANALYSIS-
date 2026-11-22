@@ -1,3 +1,4 @@
+import { useNotice } from './hooks/useNotice.js'
 import { useEffect, useState } from 'react'
 import SignIn from './modules/authentication/SignIn.jsx'
 import Register from './modules/authentication/Register.jsx'
@@ -7,6 +8,7 @@ function App() {
   const [user, setUser] = useState(null)
   const [checkingSession, setCheckingSession] = useState(true)
   const [authMode, setAuthMode] = useState('sign-in')
+  const [registrationNotice, setRegistrationNotice] = useNotice()
   const [registeredEmail, setRegisteredEmail] = useState('')
 
   useEffect(() => {
@@ -32,9 +34,9 @@ function App() {
 
   if (checkingSession) return <div className="session-loading"><span className="loading-spinner"/> Đang kiểm tra phiên đăng nhập…</div>
   if (!user && authMode === 'register') {
-    return <Register onRegistered={(email) => { setRegisteredEmail(email); setAuthMode('sign-in') }} onSwitchToSignIn={() => setAuthMode('sign-in')}/>
+    return <Register onRegistered={(email) => { setRegisteredEmail(email); setRegistrationNotice('Tạo tài khoản thành công. Hãy đăng nhập để tiếp tục.'); setAuthMode('sign-in') }} onSwitchToSignIn={() => setAuthMode('sign-in')}/>
   }
-  if (!user) return <SignIn onSignedIn={setUser} onSwitchToRegister={() => setAuthMode('register')} initialEmail={registeredEmail} successMessage={registeredEmail ? 'Tạo tài khoản thành công. Hãy đăng nhập để tiếp tục.' : ''}/>
+  if (!user) return <SignIn onSignedIn={setUser} onSwitchToRegister={() => setAuthMode('register')} initialEmail={registeredEmail} successMessage={registrationNotice}/>
   return <Dashboard key={user.id ?? user.email} user={user} onSignOut={signOut}/>
 }
 

@@ -119,15 +119,24 @@ async def upload_file(
         if size == 0:
             raise HTTPException(400, "Tệp rỗng, không thể tải lên.")
         checksum = digest.hexdigest()
+        # Serialize duplicate checks and inserts for this account, including across workers.
+        db.execute(select(User.id).where(User.id == user.id).with_for_update(key_share=True))
         existing = db.scalar(select(DataFile).where(
             DataFile.user_id == user.id,
             DataFile.client_id == str(client_id),
         ))
         if existing:
-            temporary_path.unlink(missing_ok=True)
             if existing.original_name != name or existing.sha256 != checksum:
                 raise HTTPException(409, "Mã tệp đã được dùng cho nội dung khác.")
+            temporary_path.unlink(missing_ok=True)
             return _file_response(existing)
+
+        duplicate = db.scalar(select(DataFile.id).where(
+            DataFile.user_id == user.id,
+            DataFile.sha256 == checksum,
+        ).limit(1))
+        if duplicate is not None:
+            raise HTTPException(409, "Tệp đã tồn tại.")
 
         try:
             headers, rows = read_dataset(temporary_path, extension)

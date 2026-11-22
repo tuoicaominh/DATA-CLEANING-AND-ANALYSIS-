@@ -246,3 +246,16 @@ body:has(.app-shell){background:#f3f6fa}
 .cleaning-wait-card progress{width:100%;accent-color:#326c9a}
 .cleaning-wait-card .primary-button{margin:12px auto 0}
 .cleaned-files-message{padding:24px;text-align:center}.cleaned-files-message p{margin:0 0 12px}.cleaned-files-message .primary-button{margin-inline:auto}
+.cleaned-file-actions,.quality-pagination{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.quality-report td{overflow-wrap:anywhere}
+.quality-button{border:1px solid #b5c9df;border-radius:7px;background:#fff;color:#25557b;padding:9px 12px;font:600 13px/1.4 Inter,sans-serif}
+.quality-button:hover,.quality-button[aria-pressed="true"],.quality-button[aria-expanded="true"]{background:#e8f2fb;border-color:#6d9fc7}
+.quality-button:disabled{opacity:.55;cursor:default}
+.quality-report{margin:24px 0;padding:clamp(16px,3vw,28px);border:1px solid #d6e1ec;border-radius:14px;background:#fff;color:#354158}
+.quality-report-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px}
+.quality-report-header div{min-width:0;overflow-wrap:anywhere}
+.quality-report-header h2{font-size:clamp(18px,3vw,24px);margin:0 0 8px;color:#263f60}
+.quality-report-header p{margin:4px 0}
+.quality-pagination{justify-content:flex-end;margin-top:16px}
+.analysis-file-field{display:grid;gap:8px;max-width:480px;font-weight:600}
+.analysis-file-field select{width:100%;padding:10px 12px;border:1px solid #b5c9df;border-radius:7px;background:#fff;color:inherit;font:inherit}

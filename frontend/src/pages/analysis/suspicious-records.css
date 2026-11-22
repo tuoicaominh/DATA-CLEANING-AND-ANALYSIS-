@@ -1,0 +1,48 @@
+#suspicious-records { container-type: inline-size; }
+
+.records-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border: 1px solid #f1d7a5;
+  border-radius: 10px;
+  background: #fff7e6;
+  color: #694409;
+}
+.records-banner svg { flex: none; }
+.records-banner p, .record-item p { margin: 5px 0 0; font-size: 14px; line-height: 1.5; }
+.records-banner-clear { margin-bottom: 0; background: #eff8f2; border-color: #cce6d4; color: #24563b; }
+.records-list { list-style: none; display: grid; gap: 8px; padding: 0; margin: 0; }
+.record-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr) minmax(0, 1.4fr);
+  align-items: start;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #e0e6f0;
+  border-radius: 10px;
+  background: #fbfcff;
+  overflow-wrap: anywhere;
+}
+.record-item h3 { margin: 0; color: #242c48; font-size: 15px; }
+.record-issue { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #fff0d2; color: #694409; font-size: 13px; }
+.record-item .record-value-label { margin: 0 0 5px; font-weight: 700; }
+.record-value, .record-value-details pre {
+  display: block;
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: #edf0f8;
+  color: #293653;
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.record-value-details summary { cursor: pointer; color: #39358e; font-size: 14px; font-weight: 650; }
+.record-value-details pre { max-height: 18rem; overflow: auto; margin-top: 6px; }
+
+@container (max-width: 620px) {
+  .record-item { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+}

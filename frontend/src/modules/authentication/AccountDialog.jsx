@@ -1,3 +1,4 @@
+import { useNotice } from '../../hooks/useNotice.js'
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../../components/common/Icon.jsx'
 
@@ -10,8 +11,8 @@ export default function AccountDialog({ open, user, onClose, onSignOut }) {
   const [newPassword, setNewPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
+  const [error, setError] = useNotice()
+  const [success, setSuccess] = useNotice()
 
   useEffect(() => {
     mounted.current = true
