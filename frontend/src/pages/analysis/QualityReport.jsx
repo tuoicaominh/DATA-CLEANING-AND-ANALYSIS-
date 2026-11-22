@@ -54,7 +54,7 @@ export default function QualityReport({ file, showRecords = false, onClose }) {
   }
 
   return (
-    <section className="quality-report" id={showRecords ? 'suspicious-records' : undefined} aria-labelledby="quality-report-title">
+    <section className={`quality-report ${showRecords ? '' : 'analysis-summary'}`} id={showRecords ? 'suspicious-records' : undefined} aria-labelledby="quality-report-title">
       <header className="quality-report-header">
         <div>
           <h2 id="quality-report-title" ref={title} tabIndex={showRecords ? -1 : undefined}>
@@ -63,7 +63,6 @@ export default function QualityReport({ file, showRecords = false, onClose }) {
           {showRecords ? <p>Tệp nguồn <strong>{file.source_name}</strong> · Trước khi làm sạch</p> : (
             <>
               <p>{file.name}</p>
-              <p>Phân tích tệp nguồn {file.source_name} trước khi làm sạch.</p>
             </>
           )}
         </div>
@@ -83,14 +82,17 @@ export default function QualityReport({ file, showRecords = false, onClose }) {
       {report && !showRecords && (
         report.quality_issues.length === 0 ? <p>Không phát hiện vấn đề theo các quy tắc kiểm tra hiện tại.</p> : (
           <div className="files-table-scroll">
-            <table className="files-table" aria-label="Vấn đề chất lượng">
+            <table className="files-table analysis-issues-table" aria-label="Vấn đề chất lượng">
               <thead><tr><th scope="col">Vấn đề</th><th scope="col">Phạm vi</th><th scope="col">Số bản ghi</th><th scope="col">Tỷ lệ</th></tr></thead>
               <tbody>{report.quality_issues.map((issue) => (
                 <tr key={issue.id}>
                   <td>{issueNames[issue.issue_type] || issue.issue_type}</td>
                   <td>{issue.column_name ?? 'Toàn bộ dòng'}</td>
                   <td>{number.format(issue.issue_count)}</td>
-                  <td>{percent.format(issue.issue_rate)}</td>
+                  <td>
+                    <span className="analysis-rate">{percent.format(issue.issue_rate)}</span>
+                    <progress className="analysis-rate-bar" max={1} value={issue.issue_rate} aria-hidden="true"/>
+                  </td>
                 </tr>
               ))}</tbody>
             </table>
