@@ -14,6 +14,7 @@ from app.models.file_column import FileColumn
 from app.models.output_file import OutputFile
 from app.models.processing_job import ProcessingJob
 from app.modules.processing.actions import HANDLERS
+from app.modules.processing.column_types import COLUMN_TYPES
 from app.modules.processing.data_io import read_dataset, write_dataset
 from app.modules.processing.quality import save_quality_report
 from app.validators.processing import CleaningActionRequest
@@ -68,7 +69,7 @@ def create_and_run_job(
 ) -> dict:
     if not actions:
         raise HTTPException(422, "Chọn ít nhất một thao tác làm sạch.")
-    if any(action.type not in HANDLERS for action in actions):
+    if any(action.type not in HANDLERS and action.type != "validate_types" for action in actions):
         raise HTTPException(422, "Có thao tác làm sạch không được hỗ trợ.")
 
     job = ProcessingJob(file_id=data_file.id, user_id=user_id, job_type="CLEANING", status="QUEUED")
@@ -87,8 +88,18 @@ def create_and_run_job(
         headers, rows = read_dataset(source_path, data_file.file_format)
         file_columns = db.scalars(select(FileColumn).where(FileColumn.file_id == data_file.id)).all()
         column_ids = {column.column_name: column.id for column in file_columns}
+        expected_types = {}
         action_records = []
         for action in actions:
+            if action.type == "validate_types":
+                column_types = action.parameters.get("column_types")
+                if not isinstance(column_types, dict) or not column_types or any(
+                    name not in headers or kind not in COLUMN_TYPES for name, kind in column_types.items()
+                ):
+                    raise ValueError("Hãy chọn kiểu dữ liệu hợp lệ cho ít nhất một cột.")
+                if expected_types:
+                    raise ValueError("Chỉ được gửi một cấu hình kiểm tra kiểu dữ liệu.")
+                expected_types = column_types
             column_name = action.parameters.get("column")
             column_id = column_ids.get(column_name) if isinstance(column_name, str) else None
             record = CleaningAction(
@@ -104,6 +115,8 @@ def create_and_run_job(
 
         source_rows = rows
         for action, record in zip(actions, action_records):
+            if action.type == "validate_types":
+                continue
             rows, affected_rows = HANDLERS[action.type](headers, rows, action.parameters)
             record.affected_rows = affected_rows
             db.commit()
@@ -126,7 +139,11 @@ def create_and_run_job(
             file_size=output_path.stat().st_size,
         )
         db.add(output_file)
-        save_quality_report(db, job.id, headers, source_rows, column_ids)
+        save_quality_report(
+            db, job.id, headers, source_rows, column_ids,
+            expected_types=expected_types, csv_source=data_file.file_format == "csv",
+            check_whitespace=not expected_types or any(action.type == "normalize_format" for action in actions),
+        )
         job.status = "COMPLETED"
         job.finished_at = datetime.now(timezone.utc)
         job.error_message = None

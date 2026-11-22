@@ -1,6 +1,8 @@
 import csv
+import io
 import json
 from datetime import date, datetime
+from itertools import chain
 from pathlib import Path
 from typing import Any
 
@@ -32,15 +34,17 @@ def read_dataset(path: Path, file_format: str) -> tuple[list[str], list[list[Any
     extension = file_format.lower().lstrip(".")
     if extension == "csv":
         try:
-            content = path.read_text(encoding="utf-8-sig")
+            with path.open(encoding="utf-8-sig", newline="") as source:
+                content = source.read()
         except UnicodeDecodeError:
-            content = path.read_text(encoding="cp1252")
+            with path.open(encoding="cp1252", newline="") as source:
+                content = source.read()
         sample = content[:8192]
         try:
             dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
         except csv.Error:
             dialect = csv.excel
-        reader = csv.reader(content.splitlines(), dialect)
+        reader = csv.reader(io.StringIO(content, newline=""), dialect)
         all_rows = list(reader)
         if not all_rows:
             raise ValueError("File không có dữ liệu.")
@@ -83,7 +87,17 @@ def read_dataset(path: Path, file_format: str) -> tuple[list[str], list[list[Any
         try:
             sheet = workbook.sheet_by_index(0)
             raw_headers = sheet.row_values(0) if sheet.nrows else []
-            rows = [sheet.row_values(row_index) for row_index in range(1, sheet.nrows)]
+            rows = []
+            for row_index in range(1, sheet.nrows):
+                row = []
+                for cell in sheet.row(row_index):
+                    if cell.ctype == xlrd.XL_CELL_DATE:
+                        row.append(xlrd.xldate_as_datetime(cell.value, workbook.datemode))
+                    elif cell.ctype == xlrd.XL_CELL_BOOLEAN:
+                        row.append(bool(cell.value))
+                    else:
+                        row.append(cell.value)
+                rows.append(row)
             return _headers_and_rows(raw_headers, rows)
         finally:
             workbook.release_resources()
@@ -140,11 +154,19 @@ def write_dataset(path: Path, file_format: str, headers: list[str], rows: list[l
         return "json"
 
     from openpyxl import Workbook
+    from openpyxl.cell import WriteOnlyCell
 
     workbook = Workbook(write_only=True)
     sheet = workbook.create_sheet("Cleaned Data")
-    sheet.append(headers)
-    for row in rows:
-        sheet.append([value if isinstance(value, (str, int, float, bool, date, datetime)) or value is None else str(value) for value in row])
+    for row in chain((headers,), rows):
+        cells = []
+        for value in row:
+            if value is not None and not isinstance(value, (str, int, float, bool, date, datetime)):
+                value = str(value)
+            if isinstance(value, str):
+                value = WriteOnlyCell(sheet, value=value)
+                value.data_type = "s"
+            cells.append(value)
+        sheet.append(cells)
     workbook.save(path)
     return "xlsx"

@@ -1,4 +1,5 @@
 #suspicious-records { container-type: inline-size; }
+.quality-report-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 
 .records-banner {
   display: flex;

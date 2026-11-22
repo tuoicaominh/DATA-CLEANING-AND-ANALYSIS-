@@ -20,6 +20,7 @@ from app.models.file_column import FileColumn
 from app.models.output_file import OutputFile
 from app.models.processing_job import ProcessingJob
 from app.models.user import User
+from app.modules.processing.column_types import suggest_column_types
 from app.modules.processing.data_io import profile_dataset, read_dataset
 
 router = APIRouter(prefix="/files", tags=["Files"])
@@ -45,6 +46,7 @@ class ColumnResponse(BaseModel):
     inferred_type: str
     missing_count: int
     distinct_count: int
+    suggested_type: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -198,12 +200,23 @@ async def upload_file(
 
 
 @router.get("/{file_id}/columns", response_model=list[ColumnResponse])
-def list_file_columns(file_id: int, user: User = Depends(require_current_user), db: Session = Depends(get_db)):
+def list_file_columns(file_id: int, user: User = Depends(require_current_user), db: Session = Depends(get_db), suggest_types: bool = False):
     data_file = db.scalar(select(DataFile).where(DataFile.id == file_id, DataFile.user_id == user.id))
     if data_file is None:
         raise HTTPException(404, "Không tìm thấy file.")
-    return db.scalars(select(FileColumn).where(FileColumn.file_id == file_id)
-                      .order_by(FileColumn.ordinal_position)).all()
+    columns = db.scalars(select(FileColumn).where(FileColumn.file_id == file_id)
+                         .order_by(FileColumn.ordinal_position)).all()
+    if not suggest_types:
+        return columns
+    try:
+        headers, rows = read_dataset(_stored_file_path(data_file.stored_path), data_file.file_format)
+    except (OSError, ValueError) as error:
+        raise HTTPException(409, "Không thể đọc tệp nguồn để gợi ý kiểu cột.") from error
+    suggestions = suggest_column_types(headers, rows, data_file.file_format == "csv")
+    return [
+        ColumnResponse.model_validate(column).model_copy(update={"suggested_type": suggestions.get(column.column_name)})
+        for column in columns
+    ]
 
 
 @router.get("/{file_id}/content")

@@ -36,6 +36,10 @@ export async function listFiles() {
   return (await api('')).map(toItem)
 }
 
+export function listFileColumnTypes(fileId, signal) {
+  return api(`/${encodeURIComponent(fileId)}/columns?suggest_types=true`, { signal })
+}
+
 export async function saveFiles(_owner, items) {
   const token = sessionStorage.getItem('access_token')
   const saved = []
@@ -68,12 +72,16 @@ export function createProcessingJob(fileId, actions) {
 
 export async function downloadProcessingOutput(jobId) {
   const response = await request(`/processing-jobs/${encodeURIComponent(jobId)}/output`)
+  return downloadPayload(response, 'cleaned-data')
+}
+
+async function downloadPayload(response, fallbackName) {
   const disposition = response.headers.get('Content-Disposition') || ''
   const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
   const plainName = disposition.match(/filename="?([^";]+)"?/i)?.[1]
   return {
     blob: await response.blob(),
-    filename: encodedName ? decodeURIComponent(encodedName) : plainName || 'cleaned-data',
+    filename: encodedName ? decodeURIComponent(encodedName) : plainName || fallbackName,
   }
 }
 
@@ -119,4 +127,19 @@ export async function deleteCleanedFile(jobId) {
 export async function getCleanedFileQuality(jobId, offset, signal) {
   const response = await request(`/analysis/cleaned-files/${encodeURIComponent(jobId)}/quality?offset=${offset}`, { signal })
   return response.json()
+}
+
+export async function downloadSuspiciousRecords(jobId) {
+  const response = await request(`/analysis/cleaned-files/${encodeURIComponent(jobId)}/quality?format=xlsx`)
+  const contentType = response.headers.get('Content-Type')?.split(';')[0]
+  if (contentType !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+    throw new Error('Máy chủ chưa trả về tệp Excel. Hãy cập nhật backend rồi thử tải lại.')
+  }
+  const download = await downloadPayload(response, 'ban-ghi-dang-ngo.xlsx')
+  const signature = new Uint8Array(await download.blob.slice(0, 4).arrayBuffer())
+  if (signature.length !== 4 || signature[0] !== 0x50 || signature[1] !== 0x4b ||
+      signature[2] !== 0x03 || signature[3] !== 0x04) {
+    throw new Error('Tệp Excel từ máy chủ không hợp lệ. Hãy thử tải lại.')
+  }
+  return download
 }
