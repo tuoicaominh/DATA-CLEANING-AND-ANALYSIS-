@@ -9,6 +9,37 @@ Cập nhật ngày 22/11/2026. Tài liệu mô tả hành vi hiện có của gi
 - **Ứng dụng gọi API** có thể sử dụng các endpoint tra cứu, truyền JWT qua header `Authorization: Bearer <token>` khi endpoint yêu cầu xác thực.
 - Yêu cầu thiếu JWT hợp lệ nhận HTTP `401`. Tệp và job được tra cứu trong phạm vi tài khoản. PostgreSQL lưu metadata, job và kết quả kiểm tra. Kho tệp lưu nội dung nguồn và đầu ra.
 
+## Sơ đồ use case tổng quan
+
+```mermaid
+flowchart LR
+    guest["Khách"] --> register
+    guest --> signIn
+    member["Người dùng đã đăng nhập"] --> account
+    member --> source
+    member --> configure
+    member --> run
+    member --> results
+    member --> summary
+    member --> findings
+    member --> export
+    subgraph system["Data Cleaner"]
+        register(["Đăng ký"])
+        signIn(["Đăng nhập"])
+        account(["Quản lý tài khoản"])
+        source(["Quản lý tệp nguồn"])
+        configure(["Chọn tệp và quy tắc"])
+        types(["Gợi ý và chỉnh kiểu từng cột"])
+        run(["Chạy làm sạch"])
+        results(["Quản lý tệp kết quả"])
+        summary(["Xem chất lượng dữ liệu"])
+        findings(["Xem bản ghi đáng ngờ"])
+        export(["Tải bản ghi đáng ngờ ra Excel"])
+        types -. "Khi bật kiểm tra kiểu" .-> configure
+        export -. "Khi có phát hiện" .-> findings
+    end
+```
+
 ## Tài khoản và phiên
 
 | Mã | Chức năng và điều kiện | Luồng chính và kết quả | Ngoại lệ | Sơ đồ |
@@ -34,13 +65,13 @@ Cập nhật ngày 22/11/2026. Tài liệu mô tả hành vi hiện có của gi
 
 | Mã | Chức năng và điều kiện | Luồng chính và kết quả | Ngoại lệ | Sơ đồ |
 | --- | --- | --- | --- | --- |
-| UC-10 | **Chọn tệp và quy tắc**. Có tệp nguồn. | Bấm Làm sạch cạnh tệp, chọn từng quy tắc hoặc Chọn tất cả. FE đánh dấu tệp được chọn. | Nếu chưa chọn đủ tệp và ít nhất một quy tắc, nút chạy hiển thị thông báo tương ứng. | 6 |
-| UC-11 | **Chạy làm sạch**. Tệp thuộc tài khoản, ở trạng thái `READY`. | API tạo job, đọc nguồn, áp dụng tuần tự 1–10 thao tác đã gửi, ghi số dòng bị tác động theo thao tác và tạo tệp kết quả. Tệp nguồn XLS cho đầu ra XLSX. | Yêu cầu không hợp lệ nhận `404`, `409` hoặc `422`. Lỗi trong lúc chạy được ghi vào job `FAILED`, có thể nằm trong phản hồi `201`. | 6 |
+| UC-10 | **Chọn tệp và quy tắc**. Có tệp nguồn. | Bấm Làm sạch cạnh tệp, chọn từng quy tắc hoặc Chọn tất cả. Nếu bật kiểm tra kiểu, ứng dụng gợi ý kiểu theo tệp. Người dùng có thể tìm cột, đổi kiểu hoặc bỏ qua cột. Chọn tất cả tự mở cấu hình khi đã có tệp. | Nếu chưa chọn đủ tệp và ít nhất một quy tắc, giao diện yêu cầu chọn tệp hoặc quy tắc. Khi bật kiểm tra kiểu, cần chọn kiểu cho ít nhất một cột. | 6 |
+| UC-11 | **Chạy làm sạch**. Tệp thuộc tài khoản, ở trạng thái `READY`. | API tạo job, đọc nguồn, áp dụng lần lượt các thao tác biến đổi đã gửi, ghi số dòng bị tác động và tạo tệp kết quả. Nếu có cấu hình kiểu, kiểm tra từng ô của tệp nguồn và ghi phát hiện sai kiểu. Tệp nguồn XLS cho đầu ra XLSX. | Yêu cầu không hợp lệ nhận `404`, `409` hoặc `422`. Lỗi trong lúc chạy được ghi vào job `FAILED`, có thể nằm trong phản hồi `201`. | 6 |
 | UC-12 | **Hủy chờ làm sạch**. FE đang chờ kết quả. | Bấm Hủy để quay lại trang làm sạch. Khi nhận được phản hồi job, FE thử gọi `DELETE /api/processing-jobs/{job_id}` để dọn job và đầu ra. | Backend có thể tiếp tục xử lý request đã nhận. FE báo nếu không dọn được kết quả đã hủy. | 6 |
 | UC-13 | **Xem lịch sử hoặc trạng thái job qua API**. Có ID tệp hoặc job. | `GET /api/files/{file_id}/processing-jobs` trả lịch sử. `GET /api/processing-jobs/{job_id}` trả trạng thái, thời gian, thao tác và đầu ra nếu có. | Tài nguyên ngoài phạm vi tài khoản nhận `404`. | 9 |
 | UC-14 | **Xem danh sách tệp đã làm sạch**. Đã đăng nhập. | `GET /api/cleaned-files` liệt kê đầu ra từ job hoàn tất. FE hiển thị tên kết quả, tệp gốc, định dạng và thời điểm hoàn tất. | Danh sách rỗng có thông báo riêng. Lỗi tải danh sách có nút thử lại. | 10 |
 | UC-15 | **Tải tệp kết quả**. Job có đầu ra. | Bấm Tải xuống tại kết quả của job hoặc danh sách. FE gọi `GET /api/processing-jobs/{job_id}/output` và lưu tệp theo tên trả về. | Thiếu metadata đầu ra hoặc thiếu nội dung kho tệp nhận `404`. | 7 |
-| UC-16 | **Xóa riêng tệp kết quả**. Có tệp đã làm sạch. | Bấm Xóa và xác nhận. API xóa đầu ra, còn tệp nguồn và lịch sử job vẫn tồn tại. FE bỏ tệp khỏi danh sách. | Khi đầu ra đã vắng mặt trong phạm vi tài khoản, API trả `204`. Nếu xóa thất bại, giao diện báo lỗi. | 10 |
+| UC-16 | **Xóa riêng tệp kết quả**. Có tệp đã làm sạch. | Bấm Xóa và xác nhận. API xóa đầu ra, còn tệp nguồn và lịch sử job vẫn tồn tại. FE bỏ tệp khỏi danh sách và hiện thông báo tự ẩn sau 2 giây. | Khi đầu ra đã vắng mặt trong phạm vi tài khoản, API trả `204`. Nếu xóa thất bại, giao diện báo lỗi. | 10 |
 
 ### Quy tắc làm sạch đang có
 
@@ -48,6 +79,7 @@ Cập nhật ngày 22/11/2026. Tài liệu mô tả hành vi hiện có của gi
 | --- | --- | --- |
 | `missing_values` | Bỏ dòng có ít nhất một giá trị null hoặc chuỗi chỉ có khoảng trắng. | `strategy: fill_value` và `value` để thay giá trị thiếu. |
 | `remove_duplicates` | So toàn bộ cột và giữ lần xuất hiện đầu tiên. | `columns` để chọn cột dùng so trùng. |
+| `validate_types` | Kiểm tra các cột đã chọn theo kiểu yêu cầu và ghi nhận các ô sai kiểu. | `column_types` ánh xạ tên cột sang VARCHAR, INTEGER, DECIMAL, DATE hoặc BOOLEAN. |
 | `normalize_format` | Cắt khoảng trắng đầu/cuối và thu gọn cụm ký tự trắng trong chuỗi. | `case: lower`, `upper` hoặc mặc định `preserve`. |
 
 ## Phân tích và bản ghi đáng ngờ
@@ -55,9 +87,12 @@ Cập nhật ngày 22/11/2026. Tài liệu mô tả hành vi hiện có của gi
 | Mã | Chức năng và điều kiện | Luồng chính và kết quả | Ngoại lệ | Sơ đồ |
 | --- | --- | --- | --- | --- |
 | UC-17 | **Xem chất lượng dữ liệu**. Có tệp kết quả. | Chọn tệp ở Phân tích hoặc bấm Chất lượng dữ liệu từ danh sách tệp. API trả các vấn đề trên dữ liệu nguồn trước khi làm sạch. FE hiển thị loại vấn đề, phạm vi, số lượng và tỷ lệ. | Không có vấn đề thì hiện trạng thái rỗng. Báo cáo cũ được tạo khi mở lần đầu nếu đọc được tệp nguồn. Thiếu tệp kết quả `404`, không đọc được nguồn để tạo báo cáo cũ `409`. | 11 |
-| UC-18 | **Xem bản ghi đáng ngờ**. Có tệp kết quả. | Bấm nút tương ứng để mở vùng riêng dưới danh sách. Xem tổng phát hiện, số bản ghi nguồn, cột hoặc toàn dòng, loại vấn đề, lý do và giá trị gốc. Có thể mở rộng giá trị dài và chuyển trang. | Nếu không có phát hiện, FE hiển thị trạng thái rỗng. Có nút thử lại khi tải thất bại. | 11 |
+| UC-18 | **Xem bản ghi đáng ngờ**. Có tệp kết quả. | Bấm nút tương ứng để mở vùng riêng dưới danh sách. Xem tổng phát hiện, số bản ghi nguồn, cột hoặc toàn dòng, loại vấn đề, lý do và giá trị gốc. Lỗi sai kiểu có kiểu yêu cầu và lý do cụ thể. Có thể mở rộng giá trị dài và chuyển trang. | Nếu không có phát hiện, FE hiển thị trạng thái rỗng. Có nút thử lại khi tải thất bại. | 11 |
+| UC-20 | **Tải bản ghi đáng ngờ ra Excel**. Báo cáo có phát hiện. | Bấm Tải bản ghi đáng ngờ (Excel). API trả toàn bộ mục theo tệp kết quả, không áp dụng phân trang. FE kiểm tra định dạng trước khi lưu tệp .xlsx. | Nút tải bị vô hiệu khi danh sách rỗng. Nếu phản hồi lỗi hoặc sai định dạng, giao diện báo lỗi. | 11 |
 
-`QUALITY_ISSUES` tổng hợp giá trị thiếu, dòng trùng toàn bộ và khoảng trắng thừa. `SUSPICIOUS_RECORDS` ghi chi tiết các lần phát hiện dòng trùng và khoảng trắng thừa. Một dòng nguồn có thể sinh nhiều phát hiện. Số thứ tự bản ghi bắt đầu từ 1, bỏ qua tiêu đề. API chuẩn là `GET /api/analysis/cleaned-files/{job_id}/quality`, nhóm **Data analysis** trong Swagger. Mặc định `offset=0`, `limit=25` và tối đa 100 mục mỗi trang.
+Báo cáo mô tả dữ liệu nguồn trước khi làm sạch. Bảng tổng hợp ghi nhận giá trị thiếu, dòng trùng, khoảng trắng theo cấu hình và ô sai kiểu khi có quy tắc kiểm tra. Danh sách chi tiết gồm dòng trùng toàn bộ và ô sai kiểu. Một dòng có thể sinh nhiều phát hiện. Số thứ tự bắt đầu từ 1 và bỏ qua tiêu đề.
+
+API báo cáo là `GET /api/analysis/cleaned-files/{job_id}/quality`. JSON mặc định dùng `offset=0`, `limit=25` và giới hạn 100 mục mỗi trang. Tham số `format=xlsx` xuất toàn bộ phát hiện chi tiết.
 
 ## Kiểm tra vận hành và mục giao diện
 

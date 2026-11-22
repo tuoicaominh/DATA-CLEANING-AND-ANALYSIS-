@@ -277,31 +277,37 @@ sequenceDiagram
     end
 ```
 
-## 6. Làm sạch dữ liệu
+## 6. Cấu hình và chạy làm sạch dữ liệu
 
-Dashboard gửi thao tác theo thứ tự chọn, với `parameters: {}`. Mặc định hệ thống bỏ dòng có giá trị trống, khử trùng theo toàn bộ cột và chuẩn hóa khoảng trắng trong chuỗi. `affected_rows` được lưu riêng cho từng thao tác. Một dòng có thể bị tác động ở nhiều bước.
+Kiểm tra kiểu đọc dữ liệu nguồn để giữ số dòng gốc. Các thao tác biến đổi dữ liệu chạy theo thứ tự gửi lên. Job xử lý đồng bộ trong request. Giao diện chờ tối thiểu 15 giây nếu người dùng tiếp tục chờ.
 
 ```mermaid
 flowchart TD
-    A([Chọn tệp và thao tác]) --> B["Bấm nút làm sạch"]
-    B --> C{"Tệp thuộc tài khoản, READY và thao tác hợp lệ?"}
-    C -- Không --> D["Trả lỗi API"]
-    C -- Có --> E["Tạo job QUEUED rồi cập nhật RUNNING"]
-    E --> F["Đọc tệp nguồn và tạo bản ghi thao tác"]
-    F --> G["Áp dụng thao tác tiếp theo và lưu affected_rows"]
-    G --> H{"Còn thao tác?"}
-    H -- Có --> G
-    H -- Không --> I["Ghi tệp đầu ra và tạo OutputFile"]
-    I --> J["Lưu báo cáo nguồn và cập nhật COMPLETED"]
-    F -- Lỗi --> K["Rollback giao dịch đang mở, dọn tệp đầu ra nếu có"]
-    G -- Lỗi --> K
-    I -- Lỗi --> K
-    K --> L["Lưu FAILED và thông báo lỗi"]
-    J --> M["Dashboard hiện kết quả và nút tải"]
-    L --> N["Dashboard hiện lỗi xử lý"]
-    D --> N
-    M --> O([Kết thúc])
-    N --> O
+    start([Bắt đầu]) --> pick["Chọn tệp nguồn và quy tắc"]
+    pick --> checkTypes{"Bật kiểm tra kiểu theo cột?"}
+    checkTypes -->|Có| profile["Tải kiểu gợi ý theo tệp"]
+    profile --> loaded{"Tải thành công?"}
+    loaded -->|Không| retry["Hiện lỗi và cho thử lại"]
+    retry --> profile
+    loaded -->|Có| edit["Xem, đổi kiểu hoặc bỏ qua từng cột"]
+    edit --> configured{"Có ít nhất một cột được kiểm tra?"}
+    configured -->|Không| edit
+    configured -->|Có| submit["Bấm Bắt đầu làm sạch"]
+    checkTypes -->|Không| submit
+    submit --> accepted{"Tệp và yêu cầu hợp lệ?"}
+    accepted -->|Không| rejected["Hiện lỗi yêu cầu"]
+    accepted -->|Có| running["Tạo job và đọc tệp nguồn"]
+    running --> transform["Chạy các thao tác biến đổi đã chọn"]
+    transform --> store["Ghi tệp kết quả"]
+    store --> report["Tạo báo cáo từ tệp nguồn, kiểm tra kiểu nếu được chọn"]
+    report --> completed["Lưu COMPLETED và hiển thị kết quả"]
+    running -->|Lỗi| failed["Lưu FAILED và dọn đầu ra nếu có"]
+    transform -->|Lỗi| failed
+    store -->|Lỗi| failed
+    report -->|Lỗi| failed
+    rejected --> done([Kết thúc])
+    completed --> done
+    failed --> done
 ```
 
 ```mermaid
@@ -309,46 +315,48 @@ sequenceDiagram
     actor U as Người dùng
     participant UI as Dashboard
     participant API as FastAPI
-    participant S as Processing service
+    participant S as Dịch vụ xử lý
     participant DB as PostgreSQL
     participant FS as Kho tệp
-    U->>UI: Chọn tệp và các thao tác rồi chạy
+    U->>UI: Chọn tệp và quy tắc
+    opt Bật kiểm tra kiểu theo cột
+        UI->>API: GET /api/files/{file_id}/columns?suggest_types=true
+        API->>DB: Kiểm tra chủ sở hữu và đọc hồ sơ cột
+        API->>FS: Đọc dữ liệu nguồn để gợi ý kiểu
+        API-->>UI: Danh sách cột và kiểu gợi ý
+        U->>UI: Giữ, đổi kiểu hoặc bỏ qua từng cột
+    end
+    U->>UI: Bấm Bắt đầu làm sạch
     UI->>API: POST /api/files/{file_id}/processing-jobs
     API->>DB: Kiểm tra chủ sở hữu và trạng thái READY
-    alt File hoặc thao tác không hợp lệ
+    alt Yêu cầu bị từ chối
         API-->>UI: 404, 409 hoặc 422
         UI-->>U: Hiện lỗi
-    else Yêu cầu hợp lệ
-        API->>S: create_and_run_job
-        S->>DB: Lưu QUEUED rồi lưu RUNNING
+    else Yêu cầu được tiếp nhận
+        API->>S: Chạy job với các quy tắc và cấu hình kiểu đã gửi
+        S->>DB: Tạo job QUEUED rồi lưu RUNNING
         S->>FS: Đọc tệp nguồn
-        S->>DB: Đọc metadata cột và lưu CleaningAction
-        loop Từng thao tác theo thứ tự yêu cầu khi chưa gặp lỗi
-            S->>S: Áp dụng thao tác lên tập dòng hiện tại
-            S->>DB: Cập nhật affected_rows và commit
-        end
+        S->>S: Kiểm tra cấu hình kiểu và chạy các thao tác biến đổi
         alt Xử lý thành công
-            S->>FS: Ghi tệp đầu ra, chuyển XLS thành XLSX nếu cần
-            S->>DB: Lưu OutputFile, báo cáo nguồn và trạng thái COMPLETED
-        else Lỗi đọc, xử lý hoặc ghi
-            S->>DB: Rollback giao dịch đang mở
-            S->>FS: Xóa tệp đầu ra nếu đã tạo
-            S->>DB: Lưu trạng thái FAILED và thông báo lỗi
+            S->>FS: Ghi tệp kết quả
+            S->>S: Kiểm tra ô trong tệp nguồn theo kiểu đã chọn
+            S->>DB: Lưu đầu ra, báo cáo và trạng thái COMPLETED
+        else Lỗi khi chạy
+            S->>FS: Dọn tệp đầu ra nếu đã tạo
+            S->>DB: Lưu FAILED và lý do lỗi
         end
         S-->>API: Kết quả job
         API-->>UI: 201 với trạng thái COMPLETED hoặc FAILED
         alt Người dùng tiếp tục chờ
-            UI-->>U: Hiện kết quả hoặc lỗi sau thời gian chờ tối thiểu
+            UI-->>U: Hiện kết quả hoặc lỗi
         else Người dùng đã bấm Hủy
             UI->>API: DELETE /api/processing-jobs/{job_id}
-            API->>FS: Xóa đầu ra nếu có
-            API->>DB: Xóa job đã kết thúc và dữ liệu liên quan
-            API-->>UI: 204 nếu dọn thành công
+            API-->>UI: 204 nếu dọn job và đầu ra thành công
         end
     end
 ```
 
-Job được xử lý đồng bộ trong request. `QUEUED` và `RUNNING` là trạng thái được ghi trong cùng luồng. FE chờ tối thiểu 15 giây khi người dùng tiếp tục chờ. Bấm Hủy đưa người dùng về trang làm sạch ngay. Request đang chạy có thể tiếp tục và FE chỉ thử xóa job khi đã nhận phản hồi có ID.
+Bấm Hủy đưa người dùng về trang làm sạch ngay. Request có thể tiếp tục chạy. Giao diện thử dọn job sau khi nhận được phản hồi có ID.
 
 ## 7. Tải tệp kết quả
 
@@ -505,7 +513,7 @@ flowchart TD
     G -- Xóa --> J{"Xác nhận xóa?"}
     J -- Không --> G
     J -- Có --> K["Gửi yêu cầu xóa đầu ra"]
-    K -- Thành công --> N["Bỏ tệp đã xóa khỏi danh sách"]
+    K -- Thành công --> N["Bỏ tệp khỏi danh sách và hiện thông báo tự ẩn"]
     N --> M
     K -- Lỗi --> L["Giữ danh sách và hiện lỗi"]
     L --> G
@@ -535,66 +543,72 @@ sequenceDiagram
             API->>DB: Xóa OutputFile và commit
         end
         API-->>UI: 204 nếu hoàn tất hoặc đầu ra đã vắng mặt
-        UI-->>U: Cập nhật danh sách
+        UI-->>U: Cập nhật danh sách và hiện thông báo tự ẩn sau 2 giây
     end
 ```
 
-## 11. Xem chất lượng dữ liệu và bản ghi đáng ngờ
+## 11. Xem chất lượng dữ liệu và tải bản ghi đáng ngờ
 
-Hai điểm vào dùng chung API. Trang Phân tích hiển thị tổng hợp `quality_issues`. Mục Bản ghi đáng ngờ hiển thị `suspicious_records` và tổng số phát hiện. Đổi trang gửi `offset` mới. Dữ liệu luôn mô tả nguồn trước khi làm sạch. Số thứ tự bản ghi bắt đầu từ 1 và bỏ qua tiêu đề.
+Trang Phân tích hiển thị tổng hợp. Mục Bản ghi đáng ngờ hiển thị các phát hiện chi tiết theo trang. Tệp Excel chứa toàn bộ phát hiện chi tiết của job. Danh sách, tổng số và tệp Excel đều bỏ các mục chỉ liên quan đến khoảng trắng. Báo cáo dùng dữ liệu nguồn trước khi làm sạch.
 
 ```mermaid
 flowchart TD
-    A([Chọn tệp kết quả]) --> B{"Điểm vào"}
-    B -- Chất lượng dữ liệu --> C["Mở đúng tệp trên trang Phân tích"]
-    B -- Bản ghi đáng ngờ --> D["Mở mục riêng dưới danh sách"]
-    C --> E["Gọi API báo cáo"]
-    D --> E
-    E --> F{"Đầu ra thuộc tài khoản?"}
-    F -- Không --> G["Hiện lỗi 404"]
-    F -- Có --> H{"Đã lưu báo cáo?"}
-    H -- Có --> L["Đọc tổng hợp và trang phát hiện"]
-    H -- Không --> I{"Đọc được tệp nguồn?"}
-    I -- Không --> J["Hiện lỗi 409"]
-    I -- Có --> K["Tính và lưu báo cáo từ nguồn"]
-    K --> L
-    L --> M{"Chế độ hiển thị"}
-    M -- Phân tích --> N["Hiện vấn đề, phạm vi, số lượng và tỷ lệ"]
-    M -- Bản ghi đáng ngờ --> O["Hiện vị trí, lý do, giá trị gốc hoặc thông báo rỗng"]
-    O -- Chuyển trang --> E
-    G --> P([Kết thúc])
-    J --> P
-    N --> P
-    O --> P
+    start([Chọn tệp kết quả]) --> openReport["Mở Chất lượng dữ liệu hoặc Bản ghi đáng ngờ"]
+    openReport --> loadPage["Tải báo cáo JSON"]
+    loadPage --> success{"Có phản hồi hợp lệ?"}
+    success -->|Không| retry["Hiện lỗi và cho thử lại"]
+    retry --> loadPage
+    success -->|Có| mode{"Đang xem mục nào?"}
+    mode -->|Chất lượng dữ liệu| summary["Hiện tổng hợp theo vấn đề và cột"]
+    mode -->|Bản ghi đáng ngờ| findings{"Có phát hiện chi tiết?"}
+    findings -->|Không| empty["Hiện trạng thái rỗng"]
+    findings -->|Có| detail["Hiện dòng nguồn, cột, kiểu yêu cầu, lý do và giá trị gốc"]
+    detail -->|Chuyển trang| loadPage
+    detail -->|Tải Excel| download["Yêu cầu xuất toàn bộ phát hiện"]
+    download --> valid{"Phản hồi có định dạng XLSX hợp lệ?"}
+    valid -->|Có| save["Lưu tệp Excel"]
+    valid -->|Không| error["Hiện lỗi tải tệp"]
+    error --> detail
+    summary --> done([Kết thúc])
+    empty --> done
+    save --> done
 ```
 
 ```mermaid
 sequenceDiagram
     actor U as Người dùng
     participant UI as Giao diện React
-    participant API as API Data analysis
+    participant API as API phân tích
     participant DB as PostgreSQL
     participant FS as Kho tệp
-    U->>UI: Mở báo cáo của tệp kết quả
-    loop Lần mở đầu hoặc chuyển trang
-        UI->>API: GET /api/analysis/cleaned-files/{job_id}/quality với offset và limit
-        API->>DB: Kiểm tra đầu ra thuộc tài khoản và khóa job
-        alt Không tìm thấy đầu ra
-            API-->>UI: 404
-        else Tìm thấy đầu ra
-            API->>DB: Đọc QUALITY_ISSUES
-            opt Job cũ chưa có báo cáo
-                API->>FS: Đọc tệp nguồn
-                alt Không đọc được nguồn
-                    API-->>UI: 409 và lý do
-                else Đọc thành công
-                    API->>DB: Tạo QUALITY_ISSUES và SUSPICIOUS_RECORDS
-                end
+    U->>UI: Mở báo cáo, chuyển trang hoặc bấm tải Excel
+    UI->>API: GET /api/analysis/cleaned-files/{job_id}/quality
+    API->>DB: Kiểm tra đầu ra theo chủ sở hữu và khóa job
+    alt Không tìm thấy đầu ra
+        API-->>UI: 404
+        UI-->>U: Hiện lỗi
+    else Có đầu ra
+        API->>DB: Đọc báo cáo đã lưu
+        opt Job cũ chưa có báo cáo
+            API->>FS: Đọc tệp nguồn
+            alt Đọc được tệp
+                API->>DB: Tạo báo cáo chất lượng
+            else Không đọc được tệp
+                API-->>UI: 409
+                UI-->>U: Hiện lỗi
             end
-            opt Có báo cáo để trả
-                API->>DB: Đếm và lấy trang phát hiện chi tiết
-                API-->>UI: 200 với tổng hợp, phát hiện và tổng số
-                UI-->>U: Hiện tổng hợp hoặc chi tiết theo điểm vào
+        end
+        opt Có báo cáo để trả
+            alt Xem JSON với offset và limit
+                API->>DB: Đếm phát hiện và đọc trang, bỏ lỗi khoảng trắng
+                API-->>UI: Tổng hợp, trang chi tiết và tổng số
+                UI-->>U: Hiện báo cáo
+            else Tải Excel với format=xlsx
+                API->>DB: Đọc toàn bộ phát hiện, bỏ lỗi khoảng trắng
+                API->>API: Tạo workbook XLSX
+                API-->>UI: Tệp Excel và tên tải xuống
+                UI->>UI: Kiểm tra Content-Type và chữ ký tệp
+                UI-->>U: Lưu tệp hoặc hiện lỗi định dạng
             end
         end
     end
