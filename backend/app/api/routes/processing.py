@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import FileResponse as DownloadResponse
 from sqlalchemy import select
@@ -129,3 +127,23 @@ def list_cleaned_files(
         }
         for output, source_name in rows
     ]
+
+
+@router.delete("/cleaned-files/{job_id}", status_code=204)
+def delete_cleaned_file(
+    job_id: int,
+    user: User = Depends(require_current_user),
+    db: Session = Depends(get_db),
+):
+    job = db.scalar(select(ProcessingJob).where(
+        ProcessingJob.id == job_id, ProcessingJob.user_id == user.id,
+    ).with_for_update())
+    if job is not None and job.status == "COMPLETED":
+        output = db.scalar(select(OutputFile).where(
+            OutputFile.job_id == job.id, OutputFile.output_type == "CLEANED_DATA",
+        ))
+        if output is not None:
+            service.stored_path(output.stored_path).unlink(missing_ok=True)
+            db.delete(output)
+            db.commit()
+    return Response(status_code=204)

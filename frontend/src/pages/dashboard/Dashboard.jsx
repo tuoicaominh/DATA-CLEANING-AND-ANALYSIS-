@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import Analysis from '../analysis/Analysis.jsx'
 import CleanedFiles from '../cleaned-files/CleanedFiles.jsx'
 import AccountDialog from '../../modules/authentication/AccountDialog.jsx'
 import { Icon } from '../../components/common/Icon.jsx'
-import { CLEANING_OPTIONS, useDashboard } from './useDashboard.js'
+import { CLEANING_OPTIONS, CLEANING_WAIT_SECONDS, useDashboard } from './useDashboard.js'
+import './dashboard.css'
 
 export default function Dashboard({ user, onSignOut }) {
   const {
@@ -44,11 +46,14 @@ export default function Dashboard({ user, onSignOut }) {
     handleFileInput,
   } = useDashboard(user)
 
-  const [showCleanedFiles, setShowCleanedFiles] = useState(() => window.location.hash === '#cleaned-files')
+  const [locationHash, setLocationHash] = useState(() => window.location.hash)
+  const [page, query] = locationHash.split('?')
+  const showCleanedFiles = page === '#cleaned-files'
+  const showAnalysis = page === '#analysis'
 
   useEffect(() => {
     function updatePage() {
-      setShowCleanedFiles(window.location.hash === '#cleaned-files')
+      setLocationHash(window.location.hash)
     }
     window.addEventListener('hashchange', updatePage)
     return () => window.removeEventListener('hashchange', updatePage)
@@ -61,7 +66,7 @@ export default function Dashboard({ user, onSignOut }) {
           <span className="loading-spinner" aria-hidden="true"/>
           <h1 id="cleaning-wait-title">Đang làm sạch tệp</h1>
           <p>{cleaningTarget?.file.name}</p>
-          <progress max={30} value={30 - secondsLeft} aria-label="Thời gian chờ tối thiểu"/>
+          <progress max={CLEANING_WAIT_SECONDS} value={CLEANING_WAIT_SECONDS - secondsLeft} aria-label="Thời gian chờ tối thiểu"/>
           <p role="status">{secondsLeft > 0 ? `Còn ít nhất ${secondsLeft} giây` : 'Đang chờ máy chủ trả kết quả…'}</p>
           <button type="button" className="primary-button" onClick={cancelCleaningJob}>Hủy làm sạch</button>
         </div>
@@ -84,10 +89,10 @@ export default function Dashboard({ user, onSignOut }) {
           <span>Data Cleaner</span>
         </a>
         <nav className="nav-list" aria-label="Điều hướng chính">
-          <a className={showCleanedFiles ? "nav-item" : "nav-item active"} href="#overview"><Icon name="grid"/><span>Làm sạch tệp</span></a>
+          <a className={showCleanedFiles || showAnalysis ? "nav-item" : "nav-item active"} href="#overview"><Icon name="grid"/><span>Làm sạch tệp</span></a>
           <a className="nav-item" href="#datasets"><Icon name="table"/><span>Bộ dữ liệu</span><span className="nav-count">{selectedFiles.length}</span></a>
           <a className={showCleanedFiles ? "nav-item active" : "nav-item"} href="#cleaned-files" aria-current={showCleanedFiles ? 'page' : undefined}><Icon name="download"/><span>Tệp đã làm sạch</span></a>
-          <a className="nav-item" href="#analysis"><Icon name="chart"/><span>Phân tích</span></a>
+          <a className={showAnalysis ? "nav-item active" : "nav-item"} href="#analysis" aria-current={showAnalysis ? 'page' : undefined}><Icon name="chart"/><span>Phân tích</span></a>
           <a className="nav-item" href="#activity"><Icon name="clock"/><span>Hoạt động</span></a>
         </nav>
         <div className="sidebar-bottom">
@@ -95,17 +100,24 @@ export default function Dashboard({ user, onSignOut }) {
         </div>
       </aside>
 
-      {showCleanedFiles ? <CleanedFiles/> : <main className="main-content cleaner-home" id="overview">
-        <header className="topbar">
-          <h1 className="home-title">Trang chủ</h1>
+      {showCleanedFiles ? <CleanedFiles/> : showAnalysis ? <Analysis jobId={new URLSearchParams(query).get('job')}/> : <main className="main-content cleaner-home cleaning-dashboard" id="overview">
+        <div className="page-wrap cleaned-library">
+        <header className="cleaned-library-header dashboard-header">
+          <span className="cleaned-library-icon"><Icon name="clean" size={26}/></span>
+          <div><h1>Làm sạch dữ liệu</h1><p>Chọn tệp và quy tắc để bắt đầu.</p></div>
           <div className="top-actions">
             <button type="button" className="top-action-button" aria-label="Thông báo" title="Thông báo" onClick={showNotifications}><Icon name="bell" size={25}/></button>
             <button type="button" className="top-action-button account-action" aria-label="Tài khoản của tôi" title={user?.full_name || 'Tài khoản của tôi'} onClick={() => setAccountOpen(true)} aria-haspopup="dialog"><Icon name="user" size={25}/><span>{(user?.full_name || 'U').slice(0, 2).toUpperCase()}</span></button>
           </div>
         </header>
 
-        <div className="page-wrap">
-          <section ref={cleaningOptionsRef} tabIndex={-1} className="cleaning-options" aria-label="Chức năng làm sạch dữ liệu">
+          <section ref={cleaningOptionsRef} tabIndex={-1} className="cleaning-options" aria-labelledby="cleaning-rules-title">
+            <div className="dashboard-section-heading">
+              <h2 id="cleaning-rules-title">Quy tắc làm sạch</h2>
+              <button type="button" className="dashboard-text-button" disabled={processing} onClick={toggleAllCleaningOptions}>
+                {allCleaningOptionsSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+              </button>
+            </div>
             {CLEANING_OPTIONS.map((option) => {
               const isSelected = selectedCleaningOptions.includes(option.id)
               return <button type="button" key={option.id} className={`cleaning-option ${isSelected ? 'is-selected' : ''}`} aria-pressed={isSelected} disabled={processing} onClick={() => toggleCleaningOption(option.id)}>
@@ -120,18 +132,15 @@ export default function Dashboard({ user, onSignOut }) {
                   : selectedCleaningOptions.length
                     ? `Đã chọn ${selectedCleaningOptions.length} chức năng. Chọn “Làm sạch” cạnh một file để xác định file áp dụng.`
                     : 'Chọn một hoặc nhiều chức năng, sau đó bấm “Làm sạch” cạnh file cần xử lý.'}
-              <button type="button" disabled={processing} onClick={toggleAllCleaningOptions}>
-                {allCleaningOptionsSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
-              </button>
             </div>
             <div className="cleaning-run-actions">
               <button
                 type="button"
                 className="primary-button"
-                disabled={!cleaningTarget || !selectedCleaningOptions.length || processing || deleting}
+                disabled={processing || deleting}
                 onClick={runCleaningJob}
               >
-                {processing ? 'Đang làm sạch…' : 'Bắt đầu làm sạch'}
+                <Icon name="broom" size={18}/>{processing ? 'Đang làm sạch…' : 'Bắt đầu làm sạch'}
               </button>
               {processingResult?.status === 'COMPLETED' && <button type="button" className="download-cleaned-button" onClick={downloadCleanedFile}><Icon name="download" size={18}/>Tải file kết quả</button>}
               {processingResult?.status === 'COMPLETED' && <span className="processing-job-id">Job #{processingResult.id} · {processingResult.output_file?.name}</span>}
@@ -141,10 +150,8 @@ export default function Dashboard({ user, onSignOut }) {
           <section className="upload-section" aria-label="Tải và quản lý tệp">
             <div className="files-panel" id="datasets">
               <div className="files-toolbar">
-                <div className="files-filters" role="group" aria-label="Bộ lọc tệp tin">
-                  <span className="files-filter-button is-active"><Icon name="file" size={21}/>Tất cả tệp tin</span>
-                </div>
-                <button type="button" className="primary-button files-upload-button" disabled={loadingFiles || savingFiles} onClick={() => fileInput.current?.click()}><Icon name="upload" size={18}/>{savingFiles ? 'ĐANG LƯU TỆP…' : 'Tải lên tập tin'}</button>
+                <div className="dashboard-dataset-heading"><h2>Bộ dữ liệu</h2><p>{selectedFiles.length.toLocaleString('vi-VN')} tệp nguồn</p></div>
+                <button type="button" className="primary-button files-upload-button" disabled={loadingFiles || savingFiles} onClick={() => fileInput.current?.click()}><Icon name="upload" size={18}/>{savingFiles ? 'Đang lưu tệp…' : 'Tải tệp lên'}</button>
               </div>
               <div className="files-table-scroll">
                 <table className="files-table" aria-label="Tất cả tập tin">
@@ -154,7 +161,7 @@ export default function Dashboard({ user, onSignOut }) {
                       <td><span className="files-name"><span className={`files-icon ${fileKind(item.file.name)}`} aria-hidden="true"><Icon name="file" size={22}/><small>{fileKind(item.file.name) === 'excel' ? 'XLS' : fileKind(item.file.name).toUpperCase()}</small></span><span title={item.file.name}>{item.file.name}</span></span></td>
                       <td>{formatSize(item.file.size)}</td>
                       <td><time dateTime={item.addedAt.toISOString()}>{item.addedAt.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</time></td>
-                      <td><div className="file-row-actions"><button type="button" className={`clean-file-button ${cleaningTarget?.id === item.id ? 'is-selected' : ''}`} aria-pressed={cleaningTarget?.id === item.id} aria-label={`Chọn ${item.file.name} để làm sạch`} disabled={processing} onClick={() => chooseFileForCleaning(item)}><Icon name="clean" size={16}/>{cleaningTarget?.id === item.id ? 'Đã chọn' : 'Làm sạch'}</button><button type="button" className="delete-file-button" disabled={deleting || processing} aria-label={`Xóa ${item.file.name}`} onClick={(event) => requestDelete(item, event.currentTarget)}><Icon name="close" size={16}/>Xóa</button></div></td>
+                      <td><div className="file-row-actions"><button type="button" className={`clean-file-button ${cleaningTarget?.id === item.id ? 'is-selected' : ''}`} aria-pressed={cleaningTarget?.id === item.id} aria-label={`Chọn ${item.file.name} để làm sạch`} disabled={processing} onClick={() => chooseFileForCleaning(item)}><Icon name="broom" size={16}/>{cleaningTarget?.id === item.id ? 'Đã chọn' : 'Làm sạch'}</button><button type="button" className="delete-file-button" disabled={deleting || processing} aria-label={`Xóa ${item.file.name}`} onClick={(event) => requestDelete(item, event.currentTarget)}><Icon name="close" size={16}/>Xóa</button></div></td>
                     </tr>)}
                     {!selectedFiles.length && <tr><td colSpan={4} className="files-empty">{loadingFiles ? 'Đang tải danh sách tệp…' : 'Chưa có tệp tin. Tải lên tệp đầu tiên của bạn.'}</td></tr>}
                   </tbody>
@@ -178,7 +185,6 @@ export default function Dashboard({ user, onSignOut }) {
             </div>
           </section>
 
-          <footer className="footer"><span>© 2026 Data Cleaner</span><span>Dữ liệu của bạn luôn được bảo mật <i className="lock-dot">◆</i></span><a href="#help">Trung tâm trợ giúp</a></footer>
         </div>
       </main>}
 

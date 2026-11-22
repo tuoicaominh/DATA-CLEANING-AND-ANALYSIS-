@@ -15,6 +15,7 @@ from app.models.output_file import OutputFile
 from app.models.processing_job import ProcessingJob
 from app.modules.processing.actions import HANDLERS
 from app.modules.processing.data_io import read_dataset, write_dataset
+from app.modules.processing.quality import save_quality_report
 from app.validators.processing import CleaningActionRequest
 
 def stored_path(relative_path: str) -> Path:
@@ -101,6 +102,7 @@ def create_and_run_job(
             action_records.append(record)
         db.commit()
 
+        source_rows = rows
         for action, record in zip(actions, action_records):
             rows, affected_rows = HANDLERS[action.type](headers, rows, action.parameters)
             record.affected_rows = affected_rows
@@ -124,6 +126,7 @@ def create_and_run_job(
             file_size=output_path.stat().st_size,
         )
         db.add(output_file)
+        save_quality_report(db, job.id, headers, source_rows, column_ids)
         job.status = "COMPLETED"
         job.finished_at = datetime.now(timezone.utc)
         job.error_message = None

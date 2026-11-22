@@ -1,7 +1,12 @@
+import { NOTICE_DURATION_MS } from '../../hooks/useNotice.js'
 import { useEffect, useRef, useState } from 'react'
 import { createProcessingJob, deleteFile, discardProcessingJob, downloadProcessingOutput, listFiles, migrateLocalFiles, saveFiles } from '../../modules/dashboard/data/serverFileStorage.js'
 
+const MISSING_SELECTION_NOTICE = 'Bạn chưa chọn tệp và chức năng để làm sạch.'
+const MISSING_FILE_NOTICE = 'Bạn chưa chọn tệp để làm sạch.'
+const MISSING_ACTION_NOTICE = 'Bạn chưa chọn chức năng để làm sạch.'
 const MAX_FILE_SIZE = 50 * 1024 * 1024
+export const CLEANING_WAIT_SECONDS = 15
 export const CLEANING_OPTIONS = [
   { id: 'missing', icon: 'missing', label: 'Xử lý giá trị trống' },
   { id: 'duplicates', icon: 'duplicates', label: 'Xử lý trùng dữ liệu' },
@@ -22,13 +27,14 @@ export function useDashboard(user) {
   const [selectedCleaningOptions, setSelectedCleaningOptions] = useState([])
   const [cleaningTarget, setCleaningTarget] = useState(null)
   const activeRun = useRef(null)
-  const [secondsLeft, setSecondsLeft] = useState(30)
+  const [secondsLeft, setSecondsLeft] = useState(CLEANING_WAIT_SECONDS)
   const [processing, setProcessing] = useState(false)
   const [processingResult, setProcessingResult] = useState(null)
   const [loadingFiles, setLoadingFiles] = useState(true)
   const [savingFiles, setSavingFiles] = useState(false)
   const [dragging, setDragging] = useState(false)
-  const [notice, setNotice] = useState('')
+  const [noticeEntry, setNoticeEntry] = useState(null)
+  const notice = noticeEntry?.message ?? ''
   const [uploadNotice, setUploadNotice] = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
   const [deleting, setDeleting] = useState(false)
@@ -40,13 +46,26 @@ export function useDashboard(user) {
 
   useEffect(() => {
     if (!uploadNotice) return undefined
-    const timer = window.setTimeout(() => setUploadNotice(null), 4000)
+    const timer = window.setTimeout(() => setUploadNotice(null), NOTICE_DURATION_MS)
     return () => window.clearTimeout(timer)
   }, [uploadNotice])
 
   useEffect(() => {
-    if (notice) setUploadNotice(null)
-  }, [notice])
+    if (!noticeEntry) return undefined
+    const timer = window.setTimeout(() => setNoticeEntry(null), NOTICE_DURATION_MS)
+    return () => window.clearTimeout(timer)
+  }, [noticeEntry])
+
+  function setNotice(message) {
+    if (message) setUploadNotice(null)
+    setNoticeEntry(message ? { message } : null)
+  }
+
+  function clearSelectionNotice() {
+    setNoticeEntry((current) =>
+      [MISSING_FILE_NOTICE, MISSING_ACTION_NOTICE, MISSING_SELECTION_NOTICE].includes(current?.message) ? null : current,
+    )
+  }
 
   useEffect(() => {
     if (pendingDelete) deleteDialog.current?.showModal()
@@ -70,23 +89,30 @@ export function useDashboard(user) {
 
   function toggleCleaningOption(optionId) {
     setProcessingResult(null)
-    setSelectedCleaningOptions((current) => current.includes(optionId)
-      ? current.filter((id) => id !== optionId)
-      : [...current, optionId])
+    const next = selectedCleaningOptions.includes(optionId)
+      ? selectedCleaningOptions.filter((id) => id !== optionId)
+      : [...selectedCleaningOptions, optionId]
+    updateCleaningSelection(next)
   }
 
   const allCleaningOptionsSelected = CLEANING_OPTIONS.every(({ id }) => selectedCleaningOptions.includes(id))
 
   function toggleAllCleaningOptions() {
     setProcessingResult(null)
-    setSelectedCleaningOptions((current) => {
-      const remaining = CLEANING_OPTIONS.filter(({ id }) => !current.includes(id))
-      return remaining.length ? [...current, ...remaining.map(({ id }) => id)] : []
-    })
+    const remaining = CLEANING_OPTIONS.filter(({ id }) => !selectedCleaningOptions.includes(id))
+    updateCleaningSelection(remaining.length
+      ? [...selectedCleaningOptions, ...remaining.map(({ id }) => id)]
+      : [])
+  }
+
+  function updateCleaningSelection(next) {
+    setSelectedCleaningOptions(next)
+    clearSelectionNotice()
   }
 
   function chooseFileForCleaning(item) {
     setCleaningTarget(item)
+    clearSelectionNotice()
     setProcessingResult(null)
     window.setTimeout(() => {
       cleaningOptionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -95,15 +121,27 @@ export function useDashboard(user) {
   }
 
   async function runCleaningJob() {
-    if (!cleaningTarget || !selectedCleaningOptions.length || activeRun.current) return
+    if (activeRun.current || deleting) return
+    if (!cleaningTarget && !selectedCleaningOptions.length) {
+      setNotice(MISSING_SELECTION_NOTICE)
+      return
+    }
+    if (!cleaningTarget) {
+      setNotice(MISSING_FILE_NOTICE)
+      return
+    }
+    if (!selectedCleaningOptions.length) {
+      setNotice(MISSING_ACTION_NOTICE)
+      return
+    }
     const run = { cancelled: false, token: sessionStorage.getItem('access_token') }
     activeRun.current = run
     setProcessing(true)
-    setSecondsLeft(30)
+    setSecondsLeft(CLEANING_WAIT_SECONDS)
     setProcessingResult(null)
     setNotice('')
 
-    const deadline = performance.now() + 30000
+    const deadline = performance.now() + CLEANING_WAIT_SECONDS * 1000
     run.countdown = window.setInterval(() => {
       setSecondsLeft(Math.max(0, Math.ceil((deadline - performance.now()) / 1000)))
     }, 250)
@@ -116,7 +154,7 @@ export function useDashboard(user) {
       run.timer = window.setTimeout(() => {
         setSecondsLeft(0)
         run.endWait()
-      }, 30000)
+      }, CLEANING_WAIT_SECONDS * 1000)
     })
 
     try {
@@ -198,10 +236,15 @@ export function useDashboard(user) {
     setNotice('')
     setUploadNotice(null)
     try {
-      const saved = await saveFiles(owner, items)
+      const { saved, rejected: conflicts } = await saveFiles(owner, items)
       if (!mounted.current) return
+      const failures = [...rejected, ...conflicts]
+      if (!saved.length) {
+        setNotice(failures.join(' '))
+        return
+      }
       setSelectedFiles((current) => [...current, ...saved])
-      setUploadNotice({ id: crypto.randomUUID(), count: saved.length, rejected })
+      setUploadNotice({ id: crypto.randomUUID(), count: saved.length, rejected: failures })
     } catch (error) {
       if (mounted.current) {
         setNotice(error.message || 'Không thể lưu tệp lên máy chủ. Hãy thử lại.')
