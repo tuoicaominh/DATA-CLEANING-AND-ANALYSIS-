@@ -1,9 +1,10 @@
 import './auth.css'
 
-export default function AuthLayout({ children, prompt, actionLabel, onAction, actionPlacement = 'top' }) {
+export default function AuthLayout({ children, prompt, actionLabel, onAction, actionPlacement = 'top', onBack }) {
   return (
     <main className="auth-screen">
       <section className="auth-panel">
+        {onBack && <div className="auth-panel-top"><button type="button" onClick={onBack}>← Về trang chủ</button></div>}
         {actionPlacement === 'top' && <div className="auth-panel-top"><span>{prompt}</span><button type="button" onClick={onAction}>{actionLabel}</button></div>}
         {children}
         {actionPlacement === 'bottom' ? (

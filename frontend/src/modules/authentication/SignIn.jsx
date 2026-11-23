@@ -2,7 +2,7 @@ import { useNotice } from '../../hooks/useNotice.js'
 import { useState } from 'react'
 import AuthLayout from './AuthLayout.jsx'
 
-export default function SignIn({ onSignedIn, onSwitchToRegister, initialEmail = '', successMessage = '' }) {
+export default function SignIn({ onSignedIn, onBack, onSwitchToRegister, initialEmail = '', successMessage = '' }) {
   const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -34,7 +34,7 @@ export default function SignIn({ onSignedIn, onSwitchToRegister, initialEmail = 
   }
 
   return (
-    <AuthLayout prompt="Chưa có tài khoản?" actionLabel="Tạo tài khoản" onAction={onSwitchToRegister} actionPlacement="bottom">
+    <AuthLayout prompt="Chưa có tài khoản?" actionLabel="Tạo tài khoản" onAction={onSwitchToRegister} actionPlacement="bottom" onBack={onBack}>
         <div className="signin-card">
           <div className="signin-kicker">CHÀO MỪNG TRỞ LẠI</div><h2>Đăng nhập</h2><p className="signin-intro">Nhập thông tin để vào không gian làm việc của bạn.</p>
           <form onSubmit={handleSubmit}>
