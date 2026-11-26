@@ -59,12 +59,21 @@
   text-transform: none;
 }
 
-.guest-dropdown li {
+.guest-dropdown li button {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 9px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
 }
+
+.guest-dropdown li button:hover { background: #edf7fc; }
 
 .guest-sign-in, .guest-primary {
   border: 0;

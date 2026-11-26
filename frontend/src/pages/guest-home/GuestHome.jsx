@@ -23,7 +23,9 @@ export default function GuestHome({ onSignIn }) {
             <summary>Làm sạch file <Icon name="chevron" size={14}/></summary>
             <ul>
               {CLEANING_OPTIONS.map(({ id, icon, label }) => (
-                <li key={id}><Icon name={icon} size={18}/>{label}</li>
+                <li key={id}>
+                  <button type="button" onClick={onSignIn}><Icon name={icon} size={18}/>{label}</button>
+                </li>
               ))}
             </ul>
           </details>
