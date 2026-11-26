@@ -1,6 +1,6 @@
 # Data Cleaner
 
-Data Cleaner là ứng dụng web để tải lên, làm sạch và kiểm tra chất lượng dữ liệu CSV, XLS, XLSX và JSON. Giao diện dùng React và Vite. Backend dùng FastAPI và PostgreSQL, với kho tệp riêng cho dữ liệu nguồn và kết quả.
+Data Cleaner là ứng dụng web để tải lên, làm sạch và phân tích dữ liệu CSV, XLS, XLSX và JSON. Giao diện dùng React và Vite. Backend dùng FastAPI và PostgreSQL, với kho tệp riêng cho dữ liệu nguồn và kết quả.
 
 ## Tính năng hiện tại
 
@@ -9,12 +9,16 @@ Data Cleaner là ứng dụng web để tải lên, làm sạch và kiểm tra c
 | Tài khoản | Đăng ký, đăng nhập, khôi phục phiên, đổi mật khẩu và đăng xuất. |
 | Bộ dữ liệu | Chọn hoặc kéo thả tệp nguồn, xem danh sách và xóa tệp sau khi xác nhận. Giới hạn 50 MiB mỗi tệp. |
 | Kiểm tra tệp trùng | Backend so sánh SHA-256 trong phạm vi tài khoản. Nội dung giống hệt bị báo **Tệp đã tồn tại**, kể cả khi đổi tên. Khi tải nhiều tệp, giao diện tiếp tục với các tệp còn lại nếu gặp lỗi trùng. |
-| Làm sạch dữ liệu | Chọn tệp và một hoặc nhiều quy tắc để xử lý giá trị trống, loại dòng trùng hoặc chuẩn hóa khoảng trắng. Kết quả được lưu thành tệp riêng. Đầu vào XLS xuất kết quả dạng XLSX. |
+| Làm sạch dữ liệu | Chọn tệp và quy tắc xử lý giá trị thiếu, loại dòng trùng, chuẩn hóa khoảng trắng hoặc kiểm tra kiểu theo cột. Kết quả được lưu thành tệp riêng. Đầu vào XLS xuất kết quả dạng XLSX. |
 | Tệp đã làm sạch | Xem tên tệp nguồn và thời điểm hoàn tất, tải xuống hoặc xóa riêng tệp kết quả. Xóa đầu ra giữ lại tệp nguồn và lịch sử xử lý. |
-| Phân tích chất lượng | Chọn tệp trên trang **Phân tích** hoặc mở từ nút **Chất lượng dữ liệu**. Báo cáo tổng hợp dữ liệu thiếu, dòng trùng toàn bộ và khoảng trắng thừa theo số lượng và tỷ lệ. |
-| Bản ghi đáng ngờ | Mở mục riêng dưới danh sách tệp kết quả. Xem vị trí trong tệp nguồn, loại vấn đề, lý do và giá trị gốc. Danh sách có phân trang và cho phép mở rộng giá trị dài. |
+| Báo cáo chất lượng | Ở trang **Phân tích**, báo cáo nằm dưới bộ chọn tệp. Báo cáo tổng hợp giá trị thiếu, dòng trùng, khoảng trắng thừa và lỗi kiểu theo quy tắc đã áp dụng. |
+| Bản ghi đáng ngờ | Mở từ danh sách tệp kết quả để xem vị trí trong tệp nguồn, loại vấn đề, lý do và giá trị gốc. Có thể chuyển trang và tải danh sách phát hiện ra Excel. |
+| Khám phá hai cột | Chọn hai cột của tệp đã làm sạch. Ứng dụng vẽ biểu đồ phân tán, trung bình theo nhóm, số dòng theo cặp, số mã khác nhau theo nhóm hoặc phân bố theo giờ tùy dữ liệu. |
+| Chi tiết biểu đồ | Bấm vào một thanh, cột giờ hoặc chấm để xem giá trị cùng lời giải thích cách tính. Biểu đồ theo giờ cho phép chọn đếm dòng hoặc đếm giá trị khác nhau. |
 
-Báo cáo phân tích **tệp nguồn trước khi làm sạch**. `QUALITY_ISSUES` lưu tổng hợp và `SUSPICIOUS_RECORDS` lưu các phát hiện chi tiết về dòng trùng và khoảng trắng thừa. Với kết quả cũ, backend tạo báo cáo khi mở lần đầu nếu còn đọc được tệp nguồn.
+Báo cáo chất lượng sử dụng **tệp nguồn trước khi làm sạch**. PostgreSQL lưu số liệu tổng hợp trong `quality_issues` và các phát hiện chi tiết trong `suspicious_records`. Với kết quả cũ, backend tạo báo cáo khi mở lần đầu nếu còn đọc được tệp nguồn.
+
+Biểu đồ hai cột dùng **tệp đã làm sạch** và chỉ tính các dòng có đủ hai giá trị. Bảng `analysis_results` lưu thống kê từng cột theo lần xử lý. Dữ liệu biểu đồ hai cột được tính khi nhận yêu cầu so sánh.
 
 ## Chạy trên Windows
 
@@ -58,8 +62,17 @@ Dừng Vite bằng `Ctrl+C` và dừng container bằng `docker compose down`. H
 1. Đăng nhập, vào **Làm sạch tệp** và tải lên tệp nguồn.
 2. Bấm **Làm sạch** cạnh tệp cần xử lý, chọn quy tắc rồi bấm **Bắt đầu làm sạch**.
 3. Mở **Tệp đã làm sạch** để tải xuống, xem **Bản ghi đáng ngờ** hoặc mở **Chất lượng dữ liệu** trong **Phân tích**.
+4. Trong **Phân tích**, chọn hai cột ở mục **Khám phá dữ liệu**. Bấm vào biểu đồ để xem chi tiết phần đã chọn.
 
-API báo cáo hiện nằm trong nhóm **Data analysis** ở Swagger, tại `GET /api/analysis/cleaned-files/{job_id}/quality`. Các API quản lý tệp và job dùng Bearer JWT. Xem [tài liệu API](api-docs/README.md) để biết tham số, phản hồi và mã lỗi.
+Ví dụ, nếu Coffee và Bread được ghi trên hai dòng cùng mã giao dịch, chế độ **Đếm số dòng** tính hai dòng. Chế độ **Đếm giá trị TransactionNo khác nhau** tính một mã trong cùng khung giờ.
+
+Nhóm **Data analysis** trong Swagger có ba endpoint dưới `/api/analysis/cleaned-files/{job_id}`:
+
+- `GET /quality` trả báo cáo nguồn, bản ghi đáng ngờ phân trang hoặc tệp Excel khi dùng `format=xlsx`.
+- `GET /statistics` trả danh sách cột và thống kê từng cột.
+- `GET /comparison?x=...&y=...` trả dữ liệu biểu đồ cho hai ID cột đã chọn.
+
+Các endpoint này dùng Bearer JWT và kiểm tra quyền sở hữu tệp. Xem [tài liệu API](api-docs/README.md).
 
 ## Cấu trúc dự án
 
@@ -70,13 +83,16 @@ API báo cáo hiện nằm trong nhóm **Data analysis** ở Swagger, tại `GET
 | [`api-docs/`](api-docs/) | Hướng dẫn, danh mục endpoint và đặc tả API. |
 | [`backend/tests/`](backend/tests/) | Kịch bản kiểm thử backend. |
 | [`tests/`](tests/) | Hướng dẫn tổ chức kiểm thử toàn hệ thống. |
-| [`docs/`](docs/) | Use case, sơ đồ và báo cáo dự án. |
+| [`docs/`](docs/) | Đặc tả yêu cầu, Use Case, sơ đồ và báo cáo dự án. |
 | [`scripts/`](scripts/) | Script tạo báo cáo và hỗ trợ dự án. |
 
 ## Kiểm tra và tài liệu
 
-Kiểm tra bản build frontend bằng `npm --prefix frontend run build`. Để kiểm tra luồng nghiệp vụ trên môi trường local, đăng nhập, tải cùng một tệp hai lần, chạy một job làm sạch rồi mở báo cáo từ trang kết quả.
+Kiểm tra bản build frontend bằng `npm --prefix frontend run build`. Để kiểm tra luồng nghiệp vụ trên môi trường local, đăng nhập, tải cùng một tệp hai lần để kiểm tra phát hiện trùng, chạy một job làm sạch rồi mở báo cáo và thử chọn hai cột. Bấm vào một phần biểu đồ để kiểm tra nội dung chi tiết.
 
+- [Đặc tả yêu cầu hệ thống](docs/requirements/Yeu-cau-he-thong-Data-Cleaner.md)
 - [Đặc tả use case](docs/diagrams/Use-case-Data-Cleaner.md)
-- [Sơ đồ activity và sequence bằng Mermaid để chèn vào draw.io](docs/diagrams/So-do-activity-va-sequence.md)
+- [Sơ đồ Activity bằng Mermaid](docs/diagrams/So-do-activity.md)
+- [Sơ đồ Sequence bằng Mermaid](docs/diagrams/So-do-sequence.md)
+- [Báo cáo chức năng phân tích dữ liệu](docs/reports/Bao-cao-chuc-nang-phan-tich-du-lieu-2026-11-26.md)
 - [Báo cáo tổng hợp cập nhật ngày 22/11/2026](docs/reports/Bao-cao-tong-hop-cap-nhat-Data-Cleaner-2026-11-22.docx)

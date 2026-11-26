@@ -1,6 +1,8 @@
 import io
 import json
+from csv import Error as CsvError
 from typing import Literal
+from zipfile import BadZipFile
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select
@@ -8,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.middlewares.authentication import require_current_user
 from app.db.session import get_db
+from app.models.analysis_result import AnalysisResult
 from app.models.data_file import DataFile
 from app.models.file_column import FileColumn
 from app.models.output_file import OutputFile
@@ -17,8 +20,104 @@ from app.models.user import User
 from app.modules.processing.data_io import read_dataset
 from app.modules.processing.quality import save_quality_report
 from app.modules.processing.service import stored_path
+from app.modules.processing.statistics import compare_columns, summarize_columns
 
 router = APIRouter(tags=["Data analysis"])
+
+
+def cleaned_file_query(job_id: int, user_id: int):
+    return (
+        select(ProcessingJob.file_id, OutputFile).join(OutputFile, OutputFile.job_id == ProcessingJob.id)
+        .join(DataFile, DataFile.id == ProcessingJob.file_id)
+        .where(
+            ProcessingJob.id == job_id, ProcessingJob.user_id == user_id,
+            DataFile.user_id == user_id, ProcessingJob.status == "COMPLETED",
+            OutputFile.output_type == "CLEANED_DATA",
+        )
+    )
+
+
+@router.get("/analysis/cleaned-files/{job_id}/comparison")
+def get_cleaned_file_comparison(
+    job_id: int,
+    x: int = Query(gt=0),
+    y: int = Query(gt=0),
+    user: User = Depends(require_current_user),
+    db: Session = Depends(get_db),
+):
+    source = db.execute(cleaned_file_query(job_id, user.id)).one_or_none()
+    if source is None:
+        raise HTTPException(404, "Không tìm thấy tệp kết quả.")
+    if x == y:
+        raise HTTPException(422, "Hãy chọn hai cột khác nhau.")
+    file_id, output = source
+    columns = {
+        column.id: column.column_name for column in db.scalars(
+            select(FileColumn).where(FileColumn.file_id == file_id, FileColumn.id.in_([x, y]))
+        )
+    }
+    if x not in columns or y not in columns:
+        raise HTTPException(404, "Không tìm thấy cột đã chọn trong tệp.")
+    try:
+        headers, rows = read_dataset(
+            stored_path(output.stored_path), output.file_format, empty_json_headers=[columns[x], columns[y]],
+        )
+        indices = [headers.index(columns[column_id]) for column_id in (x, y)]
+    except (OSError, ValueError, CsvError, BadZipFile) as error:
+        raise HTTPException(409, "Không thể đọc hai cột từ tệp đã làm sạch.") from error
+    return compare_columns(
+        [(row[indices[0]], row[indices[1]]) for row in rows], output.file_format == "csv",
+        names=(columns[x], columns[y]),
+    )
+
+
+@router.get("/analysis/cleaned-files/{job_id}/statistics")
+def get_cleaned_file_statistics(
+    job_id: int,
+    user: User = Depends(require_current_user),
+    db: Session = Depends(get_db),
+):
+    source = db.execute(cleaned_file_query(job_id, user.id).with_for_update(of=ProcessingJob)).one_or_none()
+    if source is None:
+        raise HTTPException(404, "Không tìm thấy tệp kết quả.")
+
+    file_id, output = source
+    columns = db.scalars(
+        select(FileColumn).where(FileColumn.file_id == file_id).order_by(FileColumn.ordinal_position)
+    ).all()
+    results = {
+        result.column_id: result for result in db.scalars(
+            select(AnalysisResult).where(AnalysisResult.job_id == job_id)
+        )
+    }
+    if any(column.id not in results for column in columns):
+        try:
+            headers, rows = read_dataset(
+                stored_path(output.stored_path), output.file_format,
+                empty_json_headers=[column.column_name for column in columns],
+            )
+        except (OSError, ValueError, CsvError, BadZipFile) as error:
+            raise HTTPException(409, "Không thể đọc tệp đã làm sạch để tạo thống kê.") from error
+        column_ids = {column.column_name: column.id for column in columns}
+        for name, statistics, chart_type, chart_data in summarize_columns(headers, rows, output.file_format == "csv"):
+            column_id = column_ids.get(name)
+            if column_id is not None and column_id not in results:
+                result = AnalysisResult(
+                    job_id=job_id, column_id=column_id, statistics=statistics,
+                    chart_type=chart_type, chart_data=chart_data,
+                )
+                db.add(result)
+                results[column_id] = result
+    payload = [
+        {
+            "column_id": column.id, "column_name": column.column_name,
+            "statistics": results[column.id].statistics, "chart_type": results[column.id].chart_type,
+            "chart_data": results[column.id].chart_data,
+        }
+        for column in columns if column.id in results
+    ]
+    db.commit()
+    return {"columns": payload}
 
 
 @router.get("/cleaned-files/{job_id}/quality", include_in_schema=False)
