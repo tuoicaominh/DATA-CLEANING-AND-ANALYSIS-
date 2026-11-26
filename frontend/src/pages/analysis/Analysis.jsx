@@ -1,6 +1,7 @@
 import { Icon } from '../../components/common/Icon.jsx'
 import { useCleanedFiles } from '../cleaned-files/useCleanedFiles.js'
 import QualityReport from './QualityReport.jsx'
+import ColumnStatistics from './ColumnStatistics.jsx'
 import './analysis.css'
 
 const completedAt = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' })
@@ -14,10 +15,11 @@ export default function Analysis({ jobId }) {
       <div className="page-wrap cleaned-library">
         <header className="cleaned-library-header">
           <span className="cleaned-library-icon"><Icon name="chart" size={26}/></span>
-          <div><h1>Phân tích dữ liệu</h1><p>Xem vấn đề chất lượng trong tệp nguồn trước khi làm sạch.</p></div>
+          <div><h1>Phân tích dữ liệu</h1><p>Xem chất lượng tệp nguồn và thống kê tệp đã làm sạch.</p></div>
           <a className="cleaned-new-link" href="#cleaned-files"><Icon name="file" size={17}/>Tệp đã làm sạch</a>
         </header>
         <div className="analysis-workspace">
+        <div className="analysis-sidebar">
         <section className="analysis-picker" aria-labelledby="analysis-picker-title">
           <h2 id="analysis-picker-title"><Icon name="file" size={20}/>Chọn tệp phân tích</h2>
           {loadFailed ? (
@@ -53,11 +55,15 @@ export default function Analysis({ jobId }) {
             </dl>
           )}
         </section>
-        {selected ? <QualityReport key={selected.job_id} file={selected}/> : (
+        {selected && <QualityReport key={selected.job_id} file={selected}/>}
+        </div>
+        {selected ? (
+          <ColumnStatistics key={selected.job_id} jobId={selected.job_id}/>
+        ) : (
           <section className="analysis-placeholder" aria-labelledby="analysis-placeholder-title">
             <span><Icon name="chart" size={29}/></span>
-            <h2 id="analysis-placeholder-title">Báo cáo chất lượng dữ liệu</h2>
-            {files?.length > 0 && <p>Chọn một tệp để xem số lượng và tỷ lệ bản ghi bị ảnh hưởng.</p>}
+            <h2 id="analysis-placeholder-title">Khám phá dữ liệu</h2>
+            {files?.length > 0 && <p>Chọn một tệp để xem biểu đồ phân tích.</p>}
           </section>
         )}
         </div>

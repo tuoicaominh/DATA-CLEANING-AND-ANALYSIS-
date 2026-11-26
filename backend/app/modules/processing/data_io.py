@@ -30,7 +30,9 @@ def _headers_and_rows(raw_headers: list[Any], raw_rows: list[list[Any]]) -> tupl
     return headers, rows
 
 
-def read_dataset(path: Path, file_format: str) -> tuple[list[str], list[list[Any]]]:
+def read_dataset(
+    path: Path, file_format: str, *, empty_json_headers: list[str] | None = None,
+) -> tuple[list[str], list[list[Any]]]:
     extension = file_format.lower().lstrip(".")
     if extension == "csv":
         try:
@@ -59,6 +61,8 @@ def read_dataset(path: Path, file_format: str) -> tuple[list[str], list[list[Any
                 payload = payload["records"]
             else:
                 payload = [payload]
+        if payload == [] and empty_json_headers is not None:
+            return empty_json_headers, []
         if not isinstance(payload, list) or not payload:
             raise ValueError("JSON phải là một danh sách bản ghi hoặc một đối tượng dữ liệu.")
         if all(isinstance(record, dict) for record in payload):

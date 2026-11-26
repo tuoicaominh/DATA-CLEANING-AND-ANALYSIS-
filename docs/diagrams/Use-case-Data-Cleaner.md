@@ -1,19 +1,21 @@
 # Đặc tả use case của Data Cleaner
 
-Cập nhật ngày 22/11/2026. Tài liệu mô tả hành vi hiện có của giao diện React và API FastAPI. Các mã sơ đồ tham chiếu đến [sơ đồ activity và sequence](So-do-activity-va-sequence.md).
+Cập nhật ngày 26/11/2026. Data Cleaner quản lý tệp nguồn, chạy quy tắc làm sạch, kiểm tra chất lượng dữ liệu nguồn và trực quan hóa tệp đầu ra. Cột **Sơ đồ** dẫn đến các mục được đánh số tương ứng trong [sơ đồ Activity](So-do-activity.md) và [sơ đồ Sequence](So-do-sequence.md).
 
 ## Tác nhân và điều kiện chung
 
-- **Khách** có thể đăng ký và đăng nhập.
+- **Khách** có thể xem trang giới thiệu, mở màn hình đăng nhập hoặc chuyển sang đăng ký. Thao tác chọn tải tệp hoặc kéo thả tệp mở yêu cầu đăng nhập.
 - **Người dùng đã đăng nhập** có thể quản lý tài khoản, tệp nguồn, job và tệp kết quả của mình.
 - **Ứng dụng gọi API** có thể sử dụng các endpoint tra cứu, truyền JWT qua header `Authorization: Bearer <token>` khi endpoint yêu cầu xác thực.
-- Yêu cầu thiếu JWT hợp lệ nhận HTTP `401`. Tệp và job được tra cứu trong phạm vi tài khoản. PostgreSQL lưu metadata, job và kết quả kiểm tra. Kho tệp lưu nội dung nguồn và đầu ra.
+- **Người vận hành** kiểm tra phản hồi của API qua endpoint sức khỏe.
+- Yêu cầu thiếu JWT hợp lệ nhận HTTP `401`. Tệp và job được tra cứu trong phạm vi tài khoản. PostgreSQL lưu metadata, job, phát hiện chất lượng và thống kê từng cột. Kho tệp lưu nội dung nguồn và đầu ra.
 
 ## Sơ đồ use case tổng quan
 
 ```mermaid
 flowchart LR
-    guest["Khách"] --> register
+    guest["Khách"] --> guestHome
+    guest --> register
     guest --> signIn
     member["Người dùng đã đăng nhập"] --> account
     member --> source
@@ -23,7 +25,11 @@ flowchart LR
     member --> summary
     member --> findings
     member --> export
+    member --> explore
+    client["Ứng dụng gọi API"] --> lookup
+    operator["Người vận hành"] --> health
     subgraph system["Data Cleaner"]
+        guestHome(["Xem trang giới thiệu"])
         register(["Đăng ký"])
         signIn(["Đăng nhập"])
         account(["Quản lý tài khoản"])
@@ -35,8 +41,13 @@ flowchart LR
         summary(["Xem chất lượng dữ liệu"])
         findings(["Xem bản ghi đáng ngờ"])
         export(["Tải bản ghi đáng ngờ ra Excel"])
+        explore(["Khám phá dữ liệu của hai cột"])
+        detail(["Xem chi tiết phần biểu đồ được chọn"])
+        lookup(["Tra cứu tệp và job"])
+        health(["Kiểm tra API"])
         types -. "Khi bật kiểm tra kiểu" .-> configure
         export -. "Khi có phát hiện" .-> findings
+        detail -. "Khi chọn một phần biểu đồ" .-> explore
     end
 ```
 
@@ -44,10 +55,11 @@ flowchart LR
 
 | Mã | Chức năng và điều kiện | Luồng chính và kết quả | Ngoại lệ | Sơ đồ |
 | --- | --- | --- | --- | --- |
+| UC-00 | **Xem trang khách**. Chưa có phiên hợp lệ. | Mở trang giới thiệu. Bấm Đăng nhập để vào biểu mẫu hoặc chọn tải tệp để mở hộp thoại yêu cầu đăng nhập. | Khách có thể đóng hộp thoại và tiếp tục xem trang. | 0 |
 | UC-01 | **Đăng ký**. Khách mở biểu mẫu. | Nhập họ tên, email, mật khẩu và xác nhận. API kiểm tra dữ liệu, băm mật khẩu, lưu tài khoản rồi trả `201`. Giao diện chuyển đến đăng nhập và điền email. | Email đã dùng `409`. Trường sai định dạng hoặc xác nhận không khớp `422`. | 1 |
 | UC-02 | **Đăng nhập**. Khách có tài khoản hoạt động. | Gửi email và mật khẩu. API trả JWT và thông tin tài khoản. Giao diện lưu token trong `sessionStorage` và mở Dashboard. | Sai thông tin hoặc tài khoản không hoạt động `401`. Payload sai `422`. | 2 |
-| UC-03 | **Khôi phục phiên**. Trình duyệt có token. | Khi mở ứng dụng, gọi `GET /api/auth/me`. Phiên hợp lệ mở Dashboard. | Nếu không xác minh được phiên, giao diện xóa token và hiển thị đăng nhập. | 2 |
-| UC-04 | **Đăng xuất**. Người dùng đã vào Dashboard. | Bấm đăng xuất. Giao diện xóa token khỏi `sessionStorage` và trở về đăng nhập. | Cần đăng nhập lại để mở tài nguyên bảo vệ. | 2 |
+| UC-03 | **Khôi phục phiên**. Trình duyệt có token. | Khi mở ứng dụng, gọi `GET /api/auth/me`. Phiên hợp lệ mở Dashboard. | Nếu không xác minh được phiên, giao diện xóa token và hiển thị trang khách. | 2 |
+| UC-04 | **Đăng xuất**. Người dùng đã vào Dashboard. | Bấm đăng xuất. Giao diện xóa token khỏi `sessionStorage` và trở về trang khách. | Cần đăng nhập lại để mở tài nguyên bảo vệ. | 2 |
 | UC-05 | **Xem tài khoản và đổi mật khẩu**. Phiên hợp lệ. | Mở hộp thoại tài khoản. Nhập mật khẩu hiện tại, mật khẩu mới và xác nhận. API kiểm tra mật khẩu hiện tại và lưu bản băm mới. | Mật khẩu hiện tại sai `400`. Mật khẩu mới dưới 12 hoặc trên 128 ký tự, trùng mật khẩu hiện tại hoặc xác nhận sai `422`. | 3 |
 
 ## Tệp nguồn
@@ -89,14 +101,22 @@ flowchart LR
 | UC-17 | **Xem chất lượng dữ liệu**. Có tệp kết quả. | Chọn tệp ở Phân tích hoặc bấm Chất lượng dữ liệu từ danh sách tệp. API trả các vấn đề trên dữ liệu nguồn trước khi làm sạch. FE hiển thị loại vấn đề, phạm vi, số lượng và tỷ lệ. | Không có vấn đề thì hiện trạng thái rỗng. Báo cáo cũ được tạo khi mở lần đầu nếu đọc được tệp nguồn. Thiếu tệp kết quả `404`, không đọc được nguồn để tạo báo cáo cũ `409`. | 11 |
 | UC-18 | **Xem bản ghi đáng ngờ**. Có tệp kết quả. | Bấm nút tương ứng để mở vùng riêng dưới danh sách. Xem tổng phát hiện, số bản ghi nguồn, cột hoặc toàn dòng, loại vấn đề, lý do và giá trị gốc. Lỗi sai kiểu có kiểu yêu cầu và lý do cụ thể. Có thể mở rộng giá trị dài và chuyển trang. | Nếu không có phát hiện, FE hiển thị trạng thái rỗng. Có nút thử lại khi tải thất bại. | 11 |
 | UC-20 | **Tải bản ghi đáng ngờ ra Excel**. Báo cáo có phát hiện. | Bấm Tải bản ghi đáng ngờ (Excel). API trả toàn bộ mục theo tệp kết quả, không áp dụng phân trang. FE kiểm tra định dạng trước khi lưu tệp .xlsx. | Nút tải bị vô hiệu khi danh sách rỗng. Nếu phản hồi lỗi hoặc sai định dạng, giao diện báo lỗi. | 11 |
+| UC-21 | **Khám phá hai cột**. Có tệp đầu ra và ít nhất hai cột. | Chọn tệp trong Phân tích. Báo cáo chất lượng nằm dưới bộ chọn tệp. Ở cột phải, chọn hai cột khác nhau để vẽ biểu đồ từ tệp đã làm sạch. | Thiếu cột hoặc thiếu dòng có đủ hai giá trị thì hiện thông báo. Tệp hoặc cột không thuộc phạm vi được phép nhận `404`. Tệp đầu ra không đọc được nhận `409`. | 13 |
+| UC-22 | **Đổi cách tính theo giờ**. Biểu đồ nhận diện một cột ngày giờ. | Chọn đếm số dòng hoặc đếm giá trị khác nhau trong từng khung giờ, cộng dồn qua các ngày trong tệp. Trong chế độ đếm dòng, có thể lọc theo một giá trị phổ biến. | Cho phép xem riêng tối đa tám giá trị phổ biến. Chế độ đếm giá trị khác nhau áp dụng trên toàn bộ giá trị của cột trong mỗi giờ. | 13 |
+| UC-23 | **Xem chi tiết biểu đồ**. Biểu đồ có dữ liệu. | Bấm vào một thanh, cột giờ hoặc điểm. Khung chi tiết giải thích giá trị được chọn và cách tính theo loại biểu đồ. | Khi đổi cặp cột, chi tiết cũ được đặt lại. | 13 |
 
 Báo cáo mô tả dữ liệu nguồn trước khi làm sạch. Bảng tổng hợp ghi nhận giá trị thiếu, dòng trùng, khoảng trắng theo cấu hình và ô sai kiểu khi có quy tắc kiểm tra. Danh sách chi tiết gồm dòng trùng toàn bộ và ô sai kiểu. Một dòng có thể sinh nhiều phát hiện. Số thứ tự bắt đầu từ 1 và bỏ qua tiêu đề.
 
 API báo cáo là `GET /api/analysis/cleaned-files/{job_id}/quality`. JSON mặc định dùng `offset=0`, `limit=25` và giới hạn 100 mục mỗi trang. Tham số `format=xlsx` xuất toàn bộ phát hiện chi tiết.
 
+**Quy tắc chọn biểu đồ.** Một cột ngày giờ được nhận diện dùng biểu đồ theo giờ. Một cột mã được nhận diện dùng số mã khác nhau theo nhóm. Hai cột số đo dùng biểu đồ phân tán, tối đa 500 điểm mẫu. Một cột số đo và một cột nhóm dùng trung bình theo nhóm. Các cặp còn lại đếm số dòng theo cặp giá trị. Biểu đồ xếp hạng hiện tối đa 10 mục. Trong ví dụ Bakery, hai dòng Coffee và Bread cùng mã đóng góp hai dòng và một mã giao dịch trong cùng khung giờ.
+
+API `GET /api/analysis/cleaned-files/{job_id}/statistics` đọc hoặc lưu thống kê từng cột vào `analysis_results`. API `GET /api/analysis/cleaned-files/{job_id}/comparison?x=...&y=...` tính biểu đồ cho hai cột trực tiếp từ tệp đầu ra.
+
 ## Kiểm tra vận hành và mục giao diện
 
 - **UC-19 · Kiểm tra API**. `GET /api/health` trả `200` và `{"status":"ok"}` để xác nhận ứng dụng đang phản hồi.
+- **Khởi động backend**. FastAPI chuẩn bị thư mục lưu tệp, tạo các bảng ORM còn thiếu và kiểm tra chuyển dữ liệu từ bảng `uploaded_files` cũ. Xem sơ đồ 14.
 - **Thông báo**. Nút chuông hiện thông báo rằng chưa có thông báo mới. **Hoạt động** hiện là mục điều hướng, chưa có trang lịch sử riêng. Lịch sử job hiện được tra cứu bằng API ở UC-13.
 
 Nguồn đối chiếu gồm [API hiện tại](../../api-docs/README.md), [route backend](../../backend/app/api/routes) và [các trang frontend](../../frontend/src/pages).

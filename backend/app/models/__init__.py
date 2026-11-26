@@ -1,3 +1,4 @@
+from app.models import analysis_result as analysis_result
 from app.models import cleaning_action as cleaning_action
 from app.models import data_file as data_file
 from app.models import file_column as file_column

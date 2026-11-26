@@ -28,6 +28,17 @@ async function api(path, options = {}, token = sessionStorage.getItem('access_to
   return response.status === 204 ? null : response.json()
 }
 
+export async function getCleanedFileStatistics(jobId, signal) {
+  const response = await request(`/analysis/cleaned-files/${encodeURIComponent(jobId)}/statistics`, { signal })
+  return response.json()
+}
+
+export async function getCleanedFileComparison(jobId, x, y, signal) {
+  const query = new URLSearchParams({ x, y })
+  const response = await request(`/analysis/cleaned-files/${encodeURIComponent(jobId)}/comparison?${query}`, { signal })
+  return response.json()
+}
+
 function toItem(row) {
   return { id: row.id, file: { name: row.name, size: row.size }, addedAt: new Date(row.created_at) }
 }
