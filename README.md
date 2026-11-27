@@ -13,6 +13,7 @@ Data Cleaner là ứng dụng web để tải lên, làm sạch và phân tích 
 | Tệp đã làm sạch | Xem tên tệp nguồn và thời điểm hoàn tất, tải xuống hoặc xóa riêng tệp kết quả. Xóa đầu ra giữ lại tệp nguồn và lịch sử xử lý. |
 | Báo cáo chất lượng | Ở trang **Phân tích**, báo cáo nằm dưới bộ chọn tệp. Báo cáo tổng hợp giá trị thiếu, dòng trùng, khoảng trắng thừa và lỗi kiểu theo quy tắc đã áp dụng. |
 | Bản ghi đáng ngờ | Mở từ danh sách tệp kết quả để xem vị trí trong tệp nguồn, loại vấn đề, lý do và giá trị gốc. Có thể chuyển trang và tải danh sách phát hiện ra Excel. |
+| Thống kê từng cột | Xem số giá trị hợp lệ, giá trị thiếu và thống kê theo kiểu dữ liệu của tệp đã làm sạch. |
 | Khám phá hai cột | Chọn hai cột của tệp đã làm sạch. Ứng dụng vẽ biểu đồ phân tán, trung bình theo nhóm, số dòng theo cặp, số mã khác nhau theo nhóm hoặc phân bố theo giờ tùy dữ liệu. |
 | Chi tiết biểu đồ | Bấm vào một thanh, cột giờ hoặc chấm để xem giá trị cùng lời giải thích cách tính. Biểu đồ theo giờ cho phép chọn đếm dòng hoặc đếm giá trị khác nhau. |
 
@@ -66,7 +67,7 @@ Dừng Vite bằng `Ctrl+C` và dừng container bằng `docker compose down`. H
 
 Ví dụ, nếu Coffee và Bread được ghi trên hai dòng cùng mã giao dịch, chế độ **Đếm số dòng** tính hai dòng. Chế độ **Đếm giá trị TransactionNo khác nhau** tính một mã trong cùng khung giờ.
 
-Nhóm **Data analysis** trong Swagger có ba endpoint dưới `/api/analysis/cleaned-files/{job_id}`:
+Nhóm **Data analysis** trong Swagger có ba endpoint dưới `/api/analysis/cleaned-files/{job_id}`.
 
 - `GET /quality` trả báo cáo nguồn, bản ghi đáng ngờ phân trang hoặc tệp Excel khi dùng `format=xlsx`.
 - `GET /statistics` trả danh sách cột và thống kê từng cột.
@@ -82,13 +83,17 @@ Các endpoint này dùng Bearer JWT và kiểm tra quyền sở hữu tệp. Xem
 | [`backend/`](backend/) | FastAPI, SQLAlchemy, các route HTTP, mô hình dữ liệu và quy tắc xử lý. |
 | [`api-docs/`](api-docs/) | Hướng dẫn, danh mục endpoint và đặc tả API. |
 | [`backend/tests/`](backend/tests/) | Kịch bản kiểm thử backend. |
-| [`tests/`](tests/) | Hướng dẫn tổ chức kiểm thử toàn hệ thống. |
+| [`tests/`](tests/README.md) | Lệnh kiểm thử tích hợp và các bước kiểm tra giao diện. |
 | [`docs/`](docs/) | Đặc tả yêu cầu, Use Case, sơ đồ và báo cáo dự án. |
 | [`scripts/`](scripts/) | Script tạo báo cáo và hỗ trợ dự án. |
 
 ## Kiểm tra và tài liệu
 
-Kiểm tra bản build frontend bằng `npm --prefix frontend run build`. Để kiểm tra luồng nghiệp vụ trên môi trường local, đăng nhập, tải cùng một tệp hai lần để kiểm tra phát hiện trùng, chạy một job làm sạch rồi mở báo cáo và thử chọn hai cột. Bấm vào một phần biểu đồ để kiểm tra nội dung chi tiết.
+Chạy `npm --prefix frontend run build` sau khi cài phụ thuộc. Xem [hướng dẫn kiểm thử](tests/README.md) để chạy kiểm thử tích hợp backend và kiểm tra luồng từ tải tệp đến phân tích.
+
+- [Hướng dẫn backend](backend/README.md)
+- [Hướng dẫn frontend](frontend/README.md)
+- [Mục lục tài liệu dự án](docs/README.md)
 
 - [Đặc tả yêu cầu hệ thống](docs/requirements/Yeu-cau-he-thong-Data-Cleaner.md)
 - [Đặc tả use case](docs/diagrams/Use-case-Data-Cleaner.md)

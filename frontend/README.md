@@ -1,86 +1,40 @@
-# Frontend
+# Frontend Data Cleaner
 
-Giao diện dùng React và Vite, chạy trực tiếp trên máy phát triển. Docker không
-cần thiết cho FE trong luồng hiện tại.
+Giao diện dùng React 19 và Vite 7. Phần xác thực, lưu tệp, làm sạch và phân tích gọi FastAPI qua đường dẫn `/api`.
 
-## Cấu trúc mã nguồn
+## Chạy trên Windows
 
-```text
-src/
-├── assets/styles/         # Style nền tảng
-├── components/common/     # Thành phần dùng lại như Icon
-├── modules/               # Nghiệp vụ theo module
-│   ├── authentication/    # Đăng nhập, đăng ký và style auth
-│   └── dashboard/data/    # Dữ liệu dashboard hiện còn là demo
-├── pages/dashboard/       # Trang dashboard
-├── App.jsx                # Điều phối phiên và các màn hình
-└── main.jsx               # Entry point React/Vite
-```
-
-## Yêu cầu
-
-- Node.js 20.19+ hoặc 22.12+ và npm
-- Repository đã được tải về máy
-- FastAPI và PostgreSQL đang chạy để đăng nhập vào hệ thống
-
-Các phiên bản Node.js tương thích được nêu trong [hướng dẫn Vite](https://vite.dev/guide/).
-
-## Cài đặt và chạy local
-
-Mở PowerShell tại thư mục `frontend`:
+Dùng Node.js 20.19 trở lên trong nhánh 20 hoặc Node.js 22.12 trở lên. Khởi động API và PostgreSQL theo [hướng dẫn backend](../backend/README.md). Từ thư mục `frontend/`, chạy các lệnh sau.
 
 ```powershell
-npm install
+npm ci
 npm run dev
 ```
 
-Mở địa chỉ hiển thị trong terminal, mặc định là `http://127.0.0.1:5173`.
-Vite dev server hiện chỉ bind vào loopback nên trang chỉ truy cập từ máy đang
-chạy FE.
+Mở địa chỉ Vite in ra, mặc định là [http://127.0.0.1:5173](http://127.0.0.1:5173). Dev server chỉ lắng nghe trên loopback. [vite.config.js](vite.config.js) chuyển tiếp `/api` tới `http://127.0.0.1:8000`.
 
-Trong terminal khác, khởi động PostgreSQL và FastAPI theo hướng dẫn ở
-[`../backend/README.md`](../backend/README.md). Vite chuyển tiếp đường dẫn `/api`
-tới `http://127.0.0.1:8000`, vì vậy không cần cấu hình CORS cho môi trường local.
+## Màn hình và dữ liệu
 
-## Đăng nhập
+| Mã nguồn | Chức năng |
+| --- | --- |
+| [src/App.jsx](src/App.jsx) | Điều phối trang khách, xác thực và phiên đăng nhập. |
+| [src/modules/authentication/](src/modules/authentication/) | Đăng ký, đăng nhập và đổi mật khẩu. |
+| [src/pages/dashboard/](src/pages/dashboard/) | Tải tệp nguồn, chọn cột, cấu hình quy tắc và chạy làm sạch. |
+| [src/pages/cleaned-files/](src/pages/cleaned-files/) | Danh sách tệp kết quả, tải xuống, xóa và mở bản ghi đáng ngờ. |
+| [src/pages/analysis/](src/pages/analysis/) | Báo cáo chất lượng, thống kê từng cột và biểu đồ so sánh hai cột. |
+| [src/modules/dashboard/data/](src/modules/dashboard/data/) | Gọi API lưu trữ và chuyển tệp cũ từ IndexedDB lên máy chủ. |
 
-Màn hình đăng ký gửi `POST /api/auth/register` với họ tên, email, mật khẩu và
-xác nhận mật khẩu. API kiểm tra schema, băm mật khẩu rồi ghi user vào bảng
-`users` trong PostgreSQL. Sau khi tạo xong, FE đưa email về form đăng nhập.
+Phiên đăng nhập lưu access token trong `sessionStorage`. Khi tải lại trang, giao diện xác minh token qua `GET /api/auth/me`. Đăng xuất xóa token. Với tệp cũ trong IndexedDB, giao diện chỉ xóa bản cục bộ sau khi máy chủ xác nhận lưu.
 
-Đăng nhập gửi `POST /api/auth/sign-in`; API trả JWT. FE lưu token trong
-`sessionStorage`, sau đó xác minh phiên bằng `GET /api/auth/me` khi tải lại
-trang. Nút đăng xuất xóa token và đưa người dùng về màn hình đăng nhập.
+Giao diện nhận CSV, XLS, XLSX và JSON tối đa 50 MiB mỗi tệp. Nếu tải nhiều tệp và máy chủ báo một tệp trùng nội dung, giao diện tiếp tục xử lý các tệp còn lại.
 
-Dashboard cho phép tải CSV, XLS, XLSX hoặc JSON, tối đa 50 MB mỗi file; metadata
-được lưu trong PostgreSQL và nội dung nằm trên storage volume của API. Dashboard
-hỗ trợ xóa file, chuyển file cũ từ IndexedDB lên máy chủ, chọn file làm sạch và
-chọn nhiều action. **Bắt đầu làm sạch** tạo `PROCESSING_JOB`; khi hoàn tất, có
-thể tải file kết quả riêng.
-
-Tài khoản quản trị ban đầu cũng có thể được tạo bằng lệnh
-`python -m app.modules.authentication.cli` trong `backend` sau khi PostgreSQL đã sẵn sàng.
-
-## Build giao diện
-
-Tạo bản build production để kiểm tra hoặc chuyển cho máy chủ static:
+## Build và xem trước
 
 ```powershell
 npm run build
 npm run preview
 ```
 
-Build được ghi vào `dist/`. `npm run preview` chỉ phục vụ xem trước trên máy,
-không phải máy chủ production. Để triển khai public, hãy phục vụ `dist/` qua
-web server/hosting phù hợp và đổi cấu hình proxy/API cho môi trường đó.
+Vite ghi bản build vào `dist/`. Lệnh `preview` phục vụ xem bản build cục bộ. Khi triển khai, cấu hình máy chủ phục vụ `dist/` và chuyển tiếp đường dẫn `/api` đến backend.
 
-## Lỗi thường gặp
-
-- **`npm` không nhận diện:** cài Node.js LTS, mở terminal mới và kiểm tra
-  `node --version` cùng `npm --version`.
-- **Không đăng nhập được / không kết nối máy chủ:** xác nhận PostgreSQL đang
-  healthy, FastAPI đang chạy ở cổng 8000 và đã tạo user trong PostgreSQL.
-- **Cổng 5173 đang được dùng:** Vite sẽ báo cổng bận; đóng tiến trình đang giữ
-  cổng hoặc đổi `server.port` trong `vite.config.js`.
-- **Thư viện cài lỗi:** xóa `node_modules` rồi chạy lại `npm install`; giữ
-  `package-lock.json` để mọi máy cài cùng dependency tree.
+Xem [hướng dẫn kiểm thử](../tests/README.md) để kiểm tra luồng từ tải tệp đến phân tích.

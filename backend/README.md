@@ -1,154 +1,61 @@
-# API FastAPI
+# Backend Data Cleaner
 
-Ứng dụng FastAPI nằm trong `backend`. Docker Compose ở thư mục gốc chạy cả API
-(Python 3.12) và PostgreSQL. FE React nằm tại `frontend` và gọi API qua Vite
-proxy.
+FastAPI cung cấp API xác thực, lưu tệp nguồn, làm sạch và phân tích dữ liệu. SQLAlchemy lưu metadata và kết quả phân tích trong PostgreSQL. Nội dung tệp nằm trong kho lưu trữ của API.
 
-## Cấu trúc
+## Chạy API và cơ sở dữ liệu
 
-```text
-backend/
-├── app/
-│   ├── api/                  # HTTP routes, controllers và auth middleware
-│   ├── modules/              # Xử lý nghiệp vụ theo module
-│   │   └── authentication/   # Đăng ký, đăng nhập, quản lý phiên
-│   ├── services/             # Tác vụ dùng chung giữa các module khi cần
-│   ├── repositories/         # Truy vấn và ghi dữ liệu
-│   ├── models/               # SQLAlchemy entities
-│   ├── validators/           # Pydantic request/response schemas
-│   ├── utils/                # JWT và xử lý mật khẩu
-│   ├── core/                 # Cấu hình
-│   ├── db/                   # SQLAlchemy Base, engine, session
-│   └── main.py               # Khởi tạo FastAPI và mount route
-├── requirements.txt
-└── Dockerfile
-```
-
-Luồng request là `api/routes` → `api/controllers` →
-`modules/authentication/service.py` → `repositories` → `models`/PostgreSQL.
-Routes khai báo endpoint; controllers chuyển đổi dữ liệu HTTP và mã lỗi;
-service xử lý quy tắc nghiệp vụ; repository truy vấn dữ liệu. Pydantic schemas
-nằm trong `validators/`, còn middleware xác thực Bearer token nằm trong
-`api/middlewares/`. Khi khởi động, API tạo bảng SQLAlchemy nếu chưa có.
-
-## Yêu cầu và cấu hình
-
-- Python 3.12
-- Docker Desktop đang chạy
-- File `.env` ở thư mục gốc, tạo từ `.env.example`
-
-Trong `.env`, đồng bộ database, user và mật khẩu giữa `DATABASE_URL` với các
-biến `POSTGRES_*`; đặt `JWT_SECRET_KEY` thành secret riêng. Khi chạy API trong
-Docker Compose, cấu hình Compose tự ghi đè host database thành `db`. Không
-commit `.env`.
-
-## Chạy API và database bằng Docker Compose
-
-Từ thư mục gốc, tạo `.env` từ `.env.example` nếu chưa có, sau đó chạy:
+Từ thư mục gốc, mở Docker Desktop và tạo `.env` nếu cần.
 
 ```powershell
-docker compose up --build
-```
-
-Compose chờ service `db` hiển thị healthy rồi khởi động API. Mở Swagger UI tại
-`http://127.0.0.1:8000/docs` hoặc OpenAPI JSON tại
-`http://127.0.0.1:8000/openapi.json`. Những lần sau chạy `docker compose up`;
-dùng `--build` khi cần dựng lại image. Có thể thêm `-d` để chạy nền.
-
-## Chạy API trực tiếp (tùy chọn)
-
-Nếu muốn phát triển backend ngoài Docker, trước hết khởi động PostgreSQL bằng
-`docker compose up -d db`. Sau đó mở PowerShell tại `backend`:
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-API chạy tại `http://127.0.0.1:8000`. Swagger UI mở ở
-`http://127.0.0.1:8000/docs`, OpenAPI JSON ở
-`http://127.0.0.1:8000/openapi.json`.
-
-## Kiểm tra đăng ký trên Swagger
-
-1. Trong `/docs`, mở `POST /api/auth/register` và chọn **Try it out**.
-2. Gửi body mẫu, dùng email riêng:
-
-```json
-{
-  "email": "user@example.com",
-  "full_name": "Nguyen Van A",
-  "password": "a-long-local-password",
-  "confirm_password": "a-long-local-password"
+if (-not (Test-Path -LiteralPath '.env')) {
+  Copy-Item -LiteralPath '.env.example' -Destination '.env'
 }
 ```
 
-3. Đăng ký thành công trả `201`; email đã dùng trả `409`. Dùng email và mật
-   khẩu đó với `POST /api/auth/sign-in` để nhận JWT.
+Đặt `JWT_SECRET_KEY` riêng trong `.env`. Docker Compose dùng `POSTGRES_DB`, `POSTGRES_USER` và `POSTGRES_PASSWORD` để tạo URL kết nối qua `db:5432`. Cổng PostgreSQL trên máy phát triển mặc định là `5433`.
 
-Các route hiện có:
+```powershell
+docker compose up --build -d
+docker compose ps
+```
 
-- `GET /api/health`
-- `POST /api/auth/register`
-- `POST /api/auth/sign-in`
-- `GET /api/auth/me` — cần Bearer token
-- `GET /api/files` — liệt kê metadata file của tài khoản; cần Bearer token
-- `PUT /api/files/{client_uuid}?name={filename}` — lưu CSV/XLS/XLSX/JSON và profile cột; cần Bearer token
-- `GET /api/files/{file_id}/columns` — xem profile các cột; cần Bearer token
-- `GET /api/files/{file_id}/content` — tải nội dung file; cần Bearer token
-- `DELETE /api/files/{file_id}` — xóa file và các kết quả/job liên quan; cần Bearer token
-- `POST /api/files/{file_id}/processing-jobs` — chạy nhiều action làm sạch; cần Bearer token
-- `GET /api/files/{file_id}/processing-jobs` — xem lịch sử job của file; cần Bearer token
-- `GET /api/processing-jobs/{job_id}` — xem trạng thái và kết quả job; cần Bearer token
-- `GET /api/processing-jobs/{job_id}/output` — tải file đã làm sạch; cần Bearer token
+Compose chờ PostgreSQL sẵn sàng rồi khởi động API. Dùng [Swagger UI](http://127.0.0.1:8000/docs), [OpenAPI JSON](http://127.0.0.1:8000/openapi.json) và [health check](http://127.0.0.1:8000/api/health) để kiểm tra dịch vụ. Nếu đổi mật khẩu sau khi volume đã khởi tạo, cập nhật cả mật khẩu của role PostgreSQL.
 
-Schema theo ERD gồm `data_files`, `file_columns`, `processing_jobs`,
-`cleaning_actions` và `output_files`. Nội dung file được lưu trên volume
-`uploaded_data`; `data_files.stored_path` giữ đường dẫn tương đối, còn DB lưu
-metadata, thống kê cột, trạng thái và hash. Upload nhận CSV/XLS/XLSX/JSON, tối
-đa 50 MB; Excel đọc sheet đầu tiên. File cũ trong `uploaded_files` được sao
-chép sang schema mới khi API khởi động; bảng nguồn được giữ nguyên.
+## Chạy FastAPI trực tiếp trên Windows
 
-Job chạy tối đa 10 action theo thứ tự nhận được và lưu trạng thái `QUEUED`,
-`RUNNING`, `COMPLETED` hoặc `FAILED`. Action `missing_values` mặc định xóa dòng
-có ô trống (hoặc dùng `{"strategy":"fill_value","value":"..."}`),
-`remove_duplicates` mặc định so sánh tất cả cột (có thể truyền `columns`), còn
-`normalize_format` chuẩn hóa khoảng trắng và tùy chọn `case: lower|upper`. File
-nguồn không đổi; kết quả được lưu riêng trong `output_files`.
+Chạy `docker compose up -d db` từ thư mục gốc. Sửa `DATABASE_URL` trong `.env` để user, mật khẩu, cổng và tên cơ sở dữ liệu khớp với `POSTGRES_*`. Khi vừa sao chép `.env.example`, cần đồng bộ mật khẩu trong hai mục vì giá trị mẫu đang khác nhau.
 
-Tài khoản ban đầu có thể tạo bằng `python -m app.modules.authentication.cli`
-trong thư mục `backend` sau khi PostgreSQL sẵn sàng. Mật khẩu yêu cầu tối
-thiểu 12 ký tự.
+Mở PowerShell tại `backend/` và dùng Python 3.12.
 
-## Kết nối FE
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
 
-Vite cấu hình ở `frontend/vite.config.js` chuyển tiếp `/api` tới
-`http://127.0.0.1:8000`. Chạy FE bằng `npm run dev` trong `frontend`; không cần
-CORS riêng trong môi trường local.
+API mặc định lắng nghe tại `127.0.0.1:8000`. Backend đọc `../.env` từ thư mục làm việc `backend/`, và kho tệp mặc định là `backend/storage/`. Frontend dùng Vite để chuyển tiếp `/api` đến cổng `8000`.
 
-## Dừng dịch vụ và lỗi thường gặp
+## Cấu trúc
 
-Dừng các container bằng `Ctrl+C` hoặc `docker compose down` từ thư mục gốc.
-Lệnh này giữ dữ liệu volume. Tránh `docker compose down -v` nếu không muốn
-xóa database.
+| Mã nguồn | Trách nhiệm |
+| --- | --- |
+| [app/api/](app/api/) | Route HTTP, controller xác thực và kiểm tra Bearer JWT. |
+| [app/modules/authentication/](app/modules/authentication/) | Nghiệp vụ tài khoản và CLI tạo tài khoản. |
+| [app/modules/processing/](app/modules/processing/) | Đọc dữ liệu, chạy job, đánh giá chất lượng và phân tích cột. |
+| [app/repositories/](app/repositories/), [app/models/](app/models/) | Truy vấn và mô hình SQLAlchemy. |
+| [app/validators/](app/validators/) | Schema Pydantic của API. |
+| [app/db/](app/db/), [app/core/](app/core/) | Kết nối, chuyển dữ liệu cũ và cấu hình ứng dụng. |
 
-- Nếu API không khởi động, kiểm tra PostgreSQL healthy và `.env`.
-- Nếu cổng `8000` bận, dùng `uvicorn app.main:app --reload --port 8001` và
-  cập nhật proxy trong `frontend/vite.config.js`.
-- Nếu đổi password sau khi volume đã khởi tạo, cần cập nhật password của role
-  PostgreSQL; chỉ sửa `.env` không tự đổi password trong DB.
+Khi khởi động, API tạo bảng còn thiếu và chuyển các bản ghi tệp cũ từ `uploaded_files` sang `data_files`. Với Docker Compose, volume `postgres_data` lưu cơ sở dữ liệu và `uploaded_data` lưu nội dung tệp nguồn và tệp kết quả. Dừng các dịch vụ bằng `docker compose down` để giữ lại hai volume.
 
+## Tạo tài khoản từ terminal
 
-## File storage
+Khi API và PostgreSQL đã chạy, dùng `docker compose exec api python -m app.modules.authentication.cli` từ thư mục gốc. Nếu chạy backend trực tiếp, dùng `.\.venv\Scripts\python.exe -m app.modules.authentication.cli` trong `backend/`. CLI hỏi email, tên hiển thị và mật khẩu ít nhất 12 ký tự.
 
-Authenticated file endpoints use the current bearer token and scope every operation to the signed-in account.
+## Luồng xử lý tệp
 
-- GET /api/files: list file metadata and profile counts.
-- PUT /api/files/{client_uuid}?name={filename}: save raw bytes (maximum 50 MB) to the persistent storage volume. Retrying the same ID and content does not create a duplicate.
-- POST /api/files/{file_id}/processing-jobs: run one or more actions and save a separate result file.
-- GET /api/processing-jobs/{job_id}/output: download the result for the owning user.
+- API nhận CSV, XLS, XLSX và JSON tối đa 50 MiB. Excel đọc sheet đầu tiên. Có thể gửi lại yêu cầu với cùng UUID, tên và nội dung tệp. Upload cùng nội dung với UUID khác bị từ chối trong phạm vi tài khoản.
+- Job nhận 1–10 thao tác. `missing_values` xử lý ô trống, `remove_duplicates` xử lý dòng trùng, `normalize_format` chuẩn hóa khoảng trắng và `validate_types` kiểm tra kiểu theo quy tắc cột. API trả trạng thái cuối `COMPLETED` hoặc `FAILED` khi tạo job.
+- Kết quả lưu riêng với tệp nguồn. Báo cáo chất lượng dựa trên dữ liệu nguồn. Thống kê từng cột và so sánh hai cột dùng dữ liệu đã làm sạch.
 
-Source and result bytes are stored on persistent volume `uploaded_data`; PostgreSQL stores their paths and metadata. Startup copies prior `uploaded_files` records into `data_files` without deleting source rows. Database records persist in `postgres_data`. The frontend migrates legacy IndexedDB files on login/page load and removes each local copy only after the server confirms saving.
+Danh mục endpoint, mã phản hồi và tham số nằm trong [tài liệu API](../api-docs/README.md). Hướng dẫn chạy các ca tích hợp nằm trong [README kiểm thử](../tests/README.md).
